@@ -1,6 +1,10 @@
 name = "Tapas"
 version = "0.1.0"
 defaultTargets = ["Tapas"]
+testDriver = "TapasTest"
 
 [[lean_lib]]
 name = "Tapas"
+
+[[lean_lib]]
+name = "TapasTest"
