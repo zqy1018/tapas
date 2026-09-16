@@ -1,0 +1,6 @@
+name = "Tapas"
+version = "0.1.0"
+defaultTargets = ["Tapas"]
+
+[[lean_lib]]
+name = "Tapas"
