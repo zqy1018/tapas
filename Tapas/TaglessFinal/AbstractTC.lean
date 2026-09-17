@@ -8,16 +8,27 @@ structure AbstractTCArgsConfig where
   simplifyType : Bool := false
 deriving Inhabited
 
+declare_term_config_elab elabAbstractTCArgsConfig AbstractTCArgsConfig
+
+/-- A missing typeclass argument that has been abstracted out of a term. -/
+structure AbstractTCArg where
+  /-- The class constraint the argument must satisfy, simplified when
+  `AbstractTCArgsConfig.simplifyType` is set. -/
+  type : Expr
+  /-- The fresh metavariable standing for the instance, in place of the one the
+  elaborator left behind. Abstracting it turns the argument into a binder. -/
+  mvar : Expr
+deriving Inhabited
+
 -- TODO This is overlapping with `simplifyMVarType` in `Veil/Util/Meta.lean`
 -- except for the delaboration and some further simplification there;
 -- consider merging once this is tested to be OK
 
 /-- Simplify the type of the given metavariable `mv`, and abstract it as a new
-metavariable with the given `mvname`. Each pair in the returned `Option` contains
-the simplified type and the new metavariable expression. -/
+metavariable with the given `mvname`. -/
 def simplifyAndAbstractMVar (mv : Expr)
   (mvname : Name) (keepBodyIf : Expr → TermElabM Bool := fun _ => return true)
-  (cfg : AbstractTCArgsConfig := {}) : TermElabM (Option (Expr × Expr)) := do
+  (cfg : AbstractTCArgsConfig := {}) : TermElabM (Option AbstractTCArg) := do
   let ty ← /- Meta.reduce (skipTypes := false) $ ← -/ Meta.inferType mv
   Meta.forallTelescope ty fun ys body => do
     -- IMPORTANT: `body` can still hold an assigned metavariable applied to the binders
@@ -47,7 +58,7 @@ def simplifyAndAbstractMVar (mv : Expr)
     let tyMVars ← Meta.getMVars type'
     unless tyMVars.isEmpty || cfg.allowMVarDependency do
       throwError "(type still has mvars after simplification):\n{type'}"
-    return (type', mv')
+    return some { type := type', mvar := mv' }
 
 -- taken from the function introduced in https://github.com/leanprover/lean4/pull/8621
 open Meta Grind in
@@ -81,12 +92,37 @@ where
       else
         return false
 
+/- A delayed assignment `?m #[xs] := ?pending` stands for `?m := fun xs => ?pending`.
+Lean only carries it out once the value of `?pending` is *ground*, because a metavariable
+still sitting in that value could later be assigned a term mentioning `xs`, which the
+abstraction would put out of scope. The values here are final -- elaboration is over, and
+nothing else will assign into them -- and the metavariables they still hold are the target
+instances, which are passed explicitly rather than assigned. Carrying the assignments out
+is therefore the abstraction Lean would itself perform, and leaving them would leave the
+body uninstantiable for good.
+
+Leaving one behind would also break `simplifyAndAbstractMVar`, which says outright that it
+does not handle delayed assignments. -/
+/-- Carry out the delayed assignments whose value is already known, so that
+`instantiateMVars` can eliminate them. -/
+private partial def collapseDelayedAssignments (e : Expr) : MetaM Unit := do
+  let mut progress := false
+  for mvarId in ← Meta.getMVars e do
+    unless ← mvarId.isAssigned do
+      let some delayed ← getDelayedMVarAssignment? mvarId | continue
+      unless ← delayed.mvarIdPending.isAssigned do continue
+      mvarId.assign (← delayed.mvarIdPending.withContext do
+        Meta.mkLambdaFVars delayed.fvars (← instantiateMVars (.mvar delayed.mvarIdPending)))
+      progress := true
+  -- Collapsing one assignment can expose another nested in its value.
+  if progress then collapseDelayedAssignments e
+
 -- TODO This is overlapping with `getRequiredDecidableInstances` in `Veil/Util/Meta.lean`
 def abstractTCArgsCore (stx : Term)
   (targetTC : Expr → Bool)
   (nameGen : String := "arg")
   (cfg : AbstractTCArgsConfig := {})
-  (expectedType? : Option Expr := none) : TermElabM (Array (Expr × Expr) × Expr) := do
+  (expectedType? : Option Expr := none) : TermElabM (Array AbstractTCArg × Expr) := do
   /- We want to throw an error if anything fails or is missing during
   elaboration. -/
   Term.withoutErrToSorry $ do
@@ -97,12 +133,13 @@ def abstractTCArgsCore (stx : Term)
   withTheReader Term.Context (fun ctx => { ctx with ignoreTCFailures := true }) do
   let e ← Term.elabTerm stx expectedType?
   Term.synthesizeSyntheticMVars (postpone := .no) (ignoreStuckTC := true)
+  collapseDelayedAssignments e
   let mvars ← Array.map Expr.mvar <$> Meta.getMVars e
   -- there might be dependencies between the metavariables
   let some mvars ← topsortMVars? mvars | throwError "cyclic dependencies between metavariables detected"
   let mut nameCounter := 0
   let mut nextName := getNextName nameCounter
-  let mut res : Array (Expr × Expr) := #[]
+  let mut res : Array AbstractTCArg := #[]
   for mv in mvars do
     if let some tmp ← simplifyAndAbstractMVar mv nextName isBodyTarget cfg then
       res := res.push tmp
@@ -117,26 +154,28 @@ where
 
 /-- `abstractTCargs% [TC1, TC2, ...] t` collects all missing arguments in `t`
 that are instances of any typeclass in `TC1`, `TC2`, ... , and abstracts them
-as arguments. The result will be like `fun [arg1 : TC1 ... , argk : TCm] => t`.
-If no typeclass list is given, it will abstract all typeclass arguments.
+as arguments. The result will be like `fun [arg0 : TC1 ... , argk : TCm] => t`.
+If no typeclass list is given, every argument elaboration left behind is
+abstracted, whether or not its type is a class.
 
 The `TCi` in the list can be either a constant name or a local typeclass
-declaration in the local context. -/
-syntax (name := abstractTCargsStx) "abstractTCargs% " Parser.Tactic.optConfig ("[" ident,* "]")? term : term
+declaration in the local context. The leading configuration sets the fields of
+`AbstractTCArgsConfig`. -/
+syntax (name := abstractTCargsStx) "abstractTCargs% " optConfig ("[" ident,* "]")? term : term
 
 @[term_elab abstractTCargsStx]
 def elabAbstractTCargs : TermElab := fun stx _ => do
   match stx with
-  | `(abstractTCargs% $[[ $[$tcs:ident],* ]]? $t:term) => do
+  | `(abstractTCargs% $cfg:optConfig $[[ $[$tcs:ident],* ]]? $t:term) => do
+    let cfg ← elabAbstractTCArgsConfig cfg
     let parsedList ← tcs.mapM parseTCList
     let targetTC e := match parsedList with
       | none => true
       | some (constTCNames, targetFVars) =>
         let head := e.getAppFn'
         head.constName?.elim (targetFVars.contains head) constTCNames.contains
-    let (tmp, e) ← abstractTCArgsCore t targetTC    -- for now just use the default config
-    let (_, mvars) := tmp.unzip
-    let e ← Meta.mkLambdaFVars mvars e (binderInfoForMVars := BinderInfo.instImplicit) >>= instantiateMVars
+    let (args, e) ← abstractTCArgsCore t targetTC (cfg := cfg)
+    let e ← Meta.mkLambdaFVars (args.map (·.mvar)) e (binderInfoForMVars := BinderInfo.instImplicit) >>= instantiateMVars
     pure e
   | _ => throwUnsupportedSyntax
 where

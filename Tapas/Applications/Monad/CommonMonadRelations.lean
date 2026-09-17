@@ -1,8 +1,25 @@
-import Tapas.LogicalRelation
+import Tapas.Applications.Monad.EffectRelation
+
+/-!
+Relations for the monad classes Lean provides, and a shortcut for building one.
+
+Nothing in the logical-relation layer depends on these; they are the entries a
+monadic client would otherwise have to derive for itself.
+
+`Monad.Rel.ofPureBind` is the one hand-written proof here. `Monad.Rel` has a field
+per operation of the whole inheritance chain, `map` through `bind`, so relating a
+pair of interpretations means discharging all seven; for a lawful monad, relating
+`pure` and `bind` is enough, since the rest are definable from them.
+-/
 
 open Tapas.LogicalRelation
 
 derive_effect_rel Monad
+derive_effect_rel MonadStateOf
+derive_effect_rel MonadReaderOf
+derive_effect_rel MonadWithReaderOf
+derive_effect_rel MonadExceptOf
+derive_effect_rel MonadLiftT (monad := n)
 
 namespace Monad.Rel
 

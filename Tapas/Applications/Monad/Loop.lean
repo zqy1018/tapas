@@ -1,10 +1,24 @@
+import Tapas.Applications.Monad.CommonMonadRelations
 import Tapas.Parametricity.Program
 
 /-!
 Opt-in least-fixpoint semantics for Lean's `while` and `repeat` syntax.
-Open the `Tapas.Parametricity.PartialLoop` scope before elaborating a program
-with explicit CCPO and MonoBind parameters. Importing this module alone does not
-change the selected loop instance.
+
+Those expand to `ForIn` over `Lean.Loop`, and the standard instance has no
+translation `derive_parametric` can use: `Lean.Loop.forIn` is `whileM`, whose value is
+a fixed point chosen classically rather than by a recursion the walk can follow. This
+module supplies a `loop` defined by `partial_fixpoint` instead, derives its
+translation, and offers it as a scoped `ForIn` instance at higher priority. The cost
+is the order structure a least fixpoint needs, `[∀ α, CCPO (m α)]` and `[MonoBind m]`.
+
+Being `scoped`, the instance changes nothing on import. Open
+`Tapas.Parametricity.PartialLoop` to select it, or elaborate one term with
+`infer_effects_partial%`, which introduces it locally instead.
+
+Of the two imports, `Parametricity.Program` is where `derive_parametric` lives, and
+`CommonMonadRelations` is there because that command needs `Monad.Rel` registered
+before it can translate a monadic program: the generic layer derives no monadic
+relation on its clients' behalf.
 -/
 
 namespace Tapas.Parametricity.PartialLoop

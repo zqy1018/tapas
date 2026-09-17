@@ -8,3 +8,4 @@ name = "Tapas"
 
 [[lean_lib]]
 name = "TapasTest"
+globs = ["TapasTest.+"]

@@ -1,9 +1,11 @@
 import Init.Internal.Order.Basic
 
 /-!
-Relational least-fixpoint induction. The orders are the actual CCPO instances
-used by `Lean.Order.fix`; no monad structure or continuity of the functionals
-is required.
+This module defines `AdmissibleRel` for relations closed under suprema of chains
+of related pairs. It proves admissibility for equality and provides function
+relation constructions via `AdmissibleRel.pi` and `AdmissibleRel.pointwise`.
+The theorem `fix_rel` shows that two monotone functionals preserving an admissible
+relation have least fixpoints related by that same relation.
 -/
 
 namespace Tapas.Parametricity

@@ -1,7 +1,7 @@
-import Tapas.LogicalRelation.Basic
+import Tapas.LogicalRelation.Registry
 
 /-!
-Relators for common data types, registered for `derive_effect_rel`:
+Relators for common data types, available to every relation generator:
 
 | Type       | Relator             |
 |------------|---------------------|
@@ -29,6 +29,6 @@ structure ProdRel {α : Type u} {α' : Type u'} {β : Type v} {β' : Type v'}
   fst : r p.1 q.1
   snd : s p.2 q.2
 
-attribute [effect_relator] Option.Rel Sum.LiftRel ListRel ProdRel
+attribute [relator] Option.Rel Sum.LiftRel ListRel ProdRel
 
 end Tapas.LogicalRelation

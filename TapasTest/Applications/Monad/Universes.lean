@@ -1,14 +1,12 @@
 import Tapas
 
-namespace TestMonad.EffectInference.UniverseTests
-
-open TestMonad.EffectInference
+namespace TapasTest.Applications.Monad.Universes
 
 universe u v w
 
 /- The value and computation universes are independently polymorphic. -/
 def pureValue {α : Type u} (x : α) :=
-  inferEffects% do
+  infer_effects% do
     pure x
 
 example {α : Type u} (x : α) :
@@ -17,7 +15,7 @@ example {α : Type u} (x : α) :
 
 /- Built-in capabilities retain their universe-polymorphic parameters. -/
 def stateRoundTrip {σ : Type u} :=
-  inferEffects% do
+  infer_effects% do
     let before ← getThe σ
     set before
     pure before
@@ -30,7 +28,7 @@ example {σ : Type u} :
 /- Exception and result types may live in unrelated universes. -/
 def recoverOrThrow {ε : Type u} {α : Type v}
     (error : ε) (fallback : α) (fail : Bool) :=
-  inferEffects% do
+  infer_effects% do
     if fail then
       throwThe ε error
     else
@@ -43,7 +41,7 @@ example {ε : Type u} {α : Type v} (error : ε) (fallback : α) (fail : Bool) :
 
 /- Universe polymorphism is preserved through calls to inferred programs. -/
 def stateThreeTimes {σ : Type u} :=
-  inferEffects% do
+  infer_effects% do
     let first ← stateRoundTrip (σ := σ)
     let second ← stateRoundTrip (σ := σ)
     let third ← getThe σ
@@ -65,7 +63,7 @@ def emit [MonadEmit ω m] (message : ω) : m PUnit :=
   MonadEmit.emit message
 
 def emitAndReturn {ω : Type u} (message : ω) :=
-  inferEffects% do
+  infer_effects% do
     emit message
     pure message
 
@@ -76,7 +74,7 @@ example {ω : Type u} (message : ω) :
 
 /- A type itself is a value above `Type 0`, ruling out the old implementation. -/
 def readType :=
-  inferEffects% do
+  infer_effects% do
     let before ← getThe Type
     set before
     pure before
@@ -86,4 +84,4 @@ example :
       [MonadStateOf Type m] → m Type) :=
   @readType
 
-end TestMonad.EffectInference.UniverseTests
+end TapasTest.Applications.Monad.Universes
