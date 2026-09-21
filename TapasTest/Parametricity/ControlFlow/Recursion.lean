@@ -1,13 +1,16 @@
 import TapasTest.TestingUtils
 
 /-!
-Recursive programs over ordinary and indexed representations. Their signatures state
-the representation and interface parameters before the recursive bodies are elaborated.
+Recursive programs over ordinary and indexed representations, and the parametricity theorems
+derived from them. The representation and interface parameters are inferred from the bodies by
+`infer_final`, so each definition states only what it is about.
 -/
 
 open Tapas.LogicalRelation
 
 namespace TapasTest.Parametricity.ControlFlow.Recursion
+
+universe u
 
 class Arithmetic (A : Type u) where
   literal : Nat → A
@@ -21,14 +24,16 @@ inductive Formula where
   | add : Formula → Formula → Formula
 
 -- Tree recursion makes two recursive calls and reads a related environment.
-def evaluate {A : Type u} [Arithmetic A] (env : Nat → A) : Formula → A
+infer_final (A : Type u)
+def evaluate (env : Nat → A) : Formula → A
   | .literal n => Arithmetic.literal n
   | .variable i => env i
   | .add lhs rhs => Arithmetic.add (evaluate env lhs) (evaluate env rhs)
 derive_parametric evaluate (repr := A)
 
 -- The recursive helper changes its representation-valued accumulator.
-def sumList {A : Type u} [Arithmetic A] (xs : List Nat) : A :=
+infer_final (A : Type u)
+def sumList (xs : List Nat) : A :=
   loop xs (Arithmetic.literal 0)
 where
   loop (rest : List Nat) (acc : A) : A :=
@@ -41,7 +46,8 @@ where
 derive_parametric sumList (repr := A)
 
 -- Finishing a row decreases `rows` but resets `cols`, requiring a lexicographic measure.
-def countCells {A : Type u} [Arithmetic A] (width rows cols : Nat) : A :=
+infer_final (A : Type u)
+def countCells (width rows cols : Nat) : A :=
   match rows, cols with
   | 0, _ => Arithmetic.literal 0
   | row + 1, 0 => countCells width row width
@@ -49,13 +55,15 @@ def countCells {A : Type u} [Arithmetic A] (width rows cols : Nat) : A :=
 termination_by (rows, cols)
 derive_parametric countCells (repr := A)
 
--- Mutual calls reorder both fixed functions and the varying value and counter.
+/- Mutual calls reorder both fixed functions and the varying value and counter. Neither body uses
+an interface, so neither signature gains one. -/
+infer_final (A : Type u)
 mutual
-def visitLeft {A : Type u} (f g : A → A) (n : Nat) (x : A) : A :=
+def visitLeft (f g : A → A) (n : Nat) (x : A) : A :=
   match n with
   | 0 => x
   | n + 1 => visitRight g f (f x) n
-def visitRight {A : Type u} (g f : A → A) (x : A) (n : Nat) : A :=
+def visitRight (g f : A → A) (x : A) (n : Nat) : A :=
   match n with
   | 0 => x
   | n + 1 => visitLeft f g n (g x)
@@ -112,13 +120,15 @@ class Sequence (repr : Nat → Type u) where
 derive_interface_rel Sequence (repr := repr)
 
 -- Each recursive call returns a value at a smaller index.
-def tabulate {repr : Nat → Type u} [Sequence repr] (f : Nat → Nat) : (n : Nat) → repr n
+infer_final (repr : Nat → Type u)
+def tabulate (f : Nat → Nat) : (n : Nat) → repr n
   | 0 => Sequence.empty
   | n + 1 => Sequence.prepend (f n) (tabulate f n)
 derive_parametric tabulate (repr := repr)
 
 -- A shared inductive input determines the result index.
-def fromList {repr : Nat → Type u} [Sequence repr] (xs : List Nat) : repr xs.length :=
+infer_final (repr : Nat → Type u)
+def fromList (xs : List Nat) : repr xs.length :=
   match xs with
   | [] => Sequence.empty
   | x :: rest => Sequence.prepend x (fromList rest)
