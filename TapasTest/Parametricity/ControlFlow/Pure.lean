@@ -67,7 +67,7 @@ example {A : Type u} {B : Type v} (R : A → B → Prop)
     (f : A → A) (g : B → B) (hfg : ∀ x y, R x y → R (f x) (g y))
     (x : A) (y : B) (hxy : R x y) (n : Nat) :
     R (iterate f x n) (iterate g y n) :=
-  iterate.parametric f x n R g hfg y hxy
+  iterate.parametric R f g hfg x y hxy n
 
 #guard chooseFunction false (· + 1) (· * 2) 3 == 6
 #guard localFunction true (· + 1) 2 9 == 4

@@ -172,7 +172,7 @@ derive_parametric firstBeforeResult as firstBeforeResultExplicit (repr := 0)
 example {A : Type u} {A' : Type w} {B : Type v} (R : A → A' → Prop)
     (a : A) (a' : A') (ha : R a a') (b : B) :
     firstBeforeResult a b = firstBeforeResult a' b :=
-  firstBeforeResult.parametric a b R a' ha
+  firstBeforeResult.parametric R a a' ha b
 
 example : @firstBeforeResult.parametric = @firstBeforeResultExplicit := rfl
 
@@ -216,7 +216,7 @@ derive_parametric leftFirst
 example {A : Type u} {A' : Type v} (R : A → A' → Prop) [la : Carrier A] [ra : Carrier A']
     (h : Carrier.Rel R la ra) (n : Nat) :
     R (rightFirst (A := A) n) (rightFirst (A := A') n) :=
-  rightFirst.parametric n R h
+  rightFirst.parametric R h n
 
 -- An unsuitable first implicit parameter is an error; selection does not try a later one.
 def unsuitableImplicit {n : Nat} {A : Type u} [Carrier A] : A := Carrier.lit n

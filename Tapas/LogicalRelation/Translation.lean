@@ -94,14 +94,20 @@ collected around the endpoint relation.
 The split is there because a proof needs the binders, not just the finished
 `Prop`. `derive_parametric` abstracts its proof over exactly the binders the
 statement quantifies, so it calls `withRelatedTelescope` itself and reads the
-`RelatedTelescope`; `derive_interface_rel` and `derive_type_rel` want only the
-`Prop` and go through `relationAt`.
+`RelatedTelescope`; `derive_interface_rel` wants only the `Prop` and goes through
+`relationAt`.
+
+`mkTypeRelation` prepares both interpretations, including their universes, and
+composes the walk with the endpoint relation to build a complete binary relation.
+Both `derive_type_rel` and `derive_parametric` call this core: the former declares
+the resulting relation, and the latter applies it to the program to obtain the
+theorem statement.
 
 -/
 
 namespace Tapas.LogicalRelation
 
-open Lean Meta Tapas
+open Lean Meta Tapas Utils
 
 /-- A representation in scope, paired with its second interpretation and the base
 relation between them. A type that binds a representation of its own extends the
@@ -261,6 +267,8 @@ private partial def withRelatedTelescopeAux {α : Type} [Inhabited α] (t : Rela
       -- values at different types, so it is refused. A declaration's own
       -- parameter telescope is the exception the caller opts into: `[MonoBind m]`
       -- refers to the `[Monad m]` before it, and each side carries its own copy.
+      -- NOTE: In this sense, `!allowDependentBinders` is a very coarse guard:
+      -- it's mostly for `partial_fixpoint` definitions.
       if !allowDependentBinders && (body.hasLooseBVar 0 || body'.hasLooseBVar 0) then
         throwError "logical relation: dependent representation arguments are unsupported"
       withLocalDecl name bi dom fun x =>
@@ -393,5 +401,24 @@ def withRelatedTelescope {α : Type} [Inhabited α]
     (k : RelatedTelescope → MetaM α) (allowDependentBinders : Bool := false) : MetaM α :=
   withRelatedTelescopeAux (.start representations left right selection) relateBinder
     allowDependentBinders k
+
+/-- Build the complete binary relation for a type, allowing the two interpretations
+to live in different universes. -/
+def mkTypeRelation (type : Expr) (levelParams : Array Name) (selection : RepresentationSelection)
+    (sharedLevels : CollectLevelParams.State := {})
+    (relateBinder : Expr → MetaM Bool := fun _ => pure true)
+    (allowDependentBinders : Bool := false) : MetaM (Expr × Array Level) := do
+  let sharedLevels ← sharedRepresentationLevels #[] type sharedLevels selection
+  -- The second interpretation is the same constant at the renamed universes.
+  let targetLevels := renameLevelParams levelParams sharedLevels
+  let targetType := type.instantiateLevelParamsArray levelParams targetLevels
+  let relation ← withLocalDeclD `left type fun left =>
+    withLocalDeclD `right targetType fun right => do
+      -- No representation is in scope yet: the type is expected to bind its own.
+      let body ← withRelatedTelescope #[] left right selection relateBinder
+        (allowDependentBinders := allowDependentBinders)
+        fun t => relatedEndpoints t >>= mkForallFVars t.binders
+      mkLambdaFVars #[left, right] body
+  return (relation, targetLevels)
 
 end Tapas.LogicalRelation

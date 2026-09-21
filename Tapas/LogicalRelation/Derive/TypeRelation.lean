@@ -46,7 +46,7 @@ proof of `T.Rel p q` starts by introducing them.
 
 namespace Tapas.LogicalRelation
 
-open Lean Meta Elab Command Utils
+open Lean Meta Elab Command
 
 /-- Generate and register `T.Rel`, the relation between two values of a definition
 whose value is a type, such as the type of a tagless final program.
@@ -85,16 +85,8 @@ def deriveTypeRelation (declName : Name) (selection : RepresentationSelection)
     -- A selection matching nothing would quietly relate the two sides by equality.
     unless ← bindsRepresentation leftWalk selection do
       throwError "logical relation: {declName} binds no representation the selection matches"
-    sharedLevels ← sharedRepresentationLevels #[] leftWalk sharedLevels selection
-    -- The second interpretation is the same constant at the renamed universes.
-    let targetLevels := renameLevelParams info.levelParams.toArray sharedLevels
+    let (rel, targetLevels) ← mkTypeRelation leftWalk info.levelParams.toArray selection sharedLevels
     let rightBody := mkAppN (mkConst declName targetLevels.toList) params
-    let rightWalk ← preprocess rightBody
-    let rel ← withLocalDeclD `left leftWalk fun leftMarked =>
-      withLocalDeclD `right rightWalk fun rightMarked => do
-        -- No representation is in scope yet: the type is expected to bind its own.
-        let res ← relationAt #[] leftMarked rightMarked selection
-        mkLambdaFVars #[leftMarked, rightMarked] res
     -- The marks have been read; the relation is stated of `T` as it is written.
     withLocalDeclD `left leftBody fun left =>
       withLocalDeclD `right rightBody fun right => do

@@ -72,7 +72,7 @@ example {A : Type u} {B : Type v} (R : A → B → Prop)
     (hf : ∀ x y, R x y → R (f x) (f' y)) (hg : ∀ x y, R x y → R (g x) (g' y))
     (n : Nat) (x : A) (y : B) (hxy : R x y) :
     R (visitLeft f g n x) (visitLeft f' g' n y) :=
-  visitLeft.parametric f g n x R f' hf g' hg y hxy
+  visitLeft.parametric R f f' hf g g' hg n x y hxy
 
 -- The same arithmetic program may build a list of contributions or add them directly.
 instance : Arithmetic (List Nat) where
@@ -94,11 +94,11 @@ abbrev sumCompatible : Arithmetic.Rel (fun xs n => xs.sum = n)
 example (env : Nat → List Nat) (expr : Formula) :
     (evaluate (A := List Nat) env expr).sum =
       evaluate (A := Nat) (fun i => (env i).sum) expr :=
-  evaluate.parametric env expr (fun xs n => xs.sum = n) sumCompatible
-    (fun i => (env i).sum) (fun _ => rfl)
+  evaluate.parametric (fun xs n => xs.sum = n) sumCompatible env
+    (fun i => (env i).sum) (fun _ => rfl) expr
 
 example (xs : List Nat) : (sumList (A := List Nat) xs).sum = sumList (A := Nat) xs :=
-  sumList.parametric xs (fun xs n => List.sum xs = n) sumCompatible
+  sumList.parametric (fun xs n => List.sum xs = n) sumCompatible xs
 
 #guard evaluate (A := Nat) (fun i => i + 10)
   (.add (.variable 0) (.add (.literal 2) (.variable 1))) == 23
@@ -132,7 +132,7 @@ derive_parametric fromList (repr := repr)
 example {repr : Nat → Type u} {repr' : Nat → Type v} (R : IndexedRelation repr repr')
     [left : Sequence repr] [right : Sequence repr'] (h : Sequence.Rel R left right)
     (xs : List Nat) : R (fromList (repr := repr) xs) (fromList (repr := repr') xs) :=
-  fromList.parametric xs R h
+  fromList.parametric R h xs
 
 instance : Sequence (fun _ => List Nat) where
   empty := []

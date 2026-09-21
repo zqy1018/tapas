@@ -4,11 +4,16 @@ import Tapas.Parametricity.Proof
 Generating `p.parametric`, the theorem that a program gives related results in two
 interpretations of its representation.
 
-The statement is the relation at `p`'s type, read off by `Tapas.LogicalRelation`;
-what this module adds is the proof. Parameters mentioning the representation are
+For programs without order parameters, the statement is the relation at `p`'s
+type, read off by `Tapas.LogicalRelation`; what this module adds is the proof.
+Parameters mentioning the representation are
 duplicated and related, the rest stay shared, and the body is translated
 structurally: applications, `let`, branches, recursion, and constants for which a
 translation is registered.
+
+Order parameters (`CCPO` and `MonoBind`) use an extension: the two interpretations
+carry their own instances without a relational premise, and proofs using least
+fixpoints may additionally require admissibility of the base relation.
 
 Nothing is assumed about how the program was written. A hand-written definition and
 one produced by instance inference take the same path, and a constant with no
@@ -20,7 +25,7 @@ Proof search is implemented in `Tapas.Parametricity.Proof`.
 namespace Tapas.Parametricity
 
 open Lean Meta Elab Command
-open Utils LogicalRelation
+open LogicalRelation
 
 /-- Order structures and monotonicity witnesses are separate semantic parameters,
 not interface dictionaries whose operations should be related. -/
@@ -37,8 +42,12 @@ private def getRecursionBlock (source : Name) : MetaM (Array Name × FixedParamP
     return (info.declNames, info.fixedParamPerms)
   throwError "parametricity: missing recursion information for {source}; register a hand-written translation"
 
-/-- Arguments for the parameters a functional induction principle keeps before its motives.
-They are a subsequence of the fixed parameters, matched in order by name and type. -/
+/-- Arguments for the `numKept` parameters a functional induction principle takes before its
+motives. Only fixed parameters can be kept, and Lean drops the ones the principle does not
+need, so they are a subsequence of the fixed parameters rather than a prefix: walk the
+binders of `type`, and for each one take the next matching entry of `fixed`, preferring a
+match on the user name and falling back to the type alone. Used only for a mutual block,
+where no `FunIndInfo` records the mapping. -/
 private def keptInductionArgs (inductName : Name) (type : Expr) (numKept : Nat)
     (fixed : Array Expr) : MetaM (Array Expr) := do
   let mut type := type
@@ -64,23 +73,47 @@ private def keptInductionArgs (inductName : Name) (type : Expr) (numKept : Nat)
     type := body.instantiate1 arg
   return kept
 
-/-- The induction motive for `member`, over its varying parameters: related calls of
-`member`, quantifying over related copies of representation-dependent varying parameters. -/
+/-- The induction motive for `member`, over its varying parameters. With the fixed parameters
+already applied on both sides, it is
+
+```
+fun x₁ ... xₖ =>                           -- the varying parameters, left copies
+  ∀ (xᵢ' ...) (hᵢ : Rᵢ xᵢ xᵢ') ...,        -- right copies and premises, where the parameter
+                                           -- depends on the representation
+    R (member  fixedLeft  x₁ ... xₖ)
+      (member' fixedRight x₁' ... xₖ')
+```
+
+where `member'` is `member` at the second interpretation. The induction principle applies the
+motive to the left arguments, so those and only those are abstracted by the lambda; the right
+copies and their premises are quantified inside the body instead, and are supplied again by
+the caller once induction has proved the motive. A parameter independent of the representation
+is shared, so its left and right copies are the same binder, which therefore stays in the
+lambda and is used on both sides. -/
 private def inductionMotive (ctx : ProofContext) (member : Name) (perm : FixedParamPerm)
     (fixedLeft fixedRight : Array Expr) (changeLevels : Expr → Expr) : MetaM Expr := do
   let info ← getConstInfo member
+  -- `fun ys => member fixed ys`: the fixed parameters applied, leaving a function of the
+  -- varying ones alone. `buildArgs` puts the two groups back in the definition's own order.
   let specialize (fn : Expr) (fixed : Array Expr) : MetaM Expr := do
     forallTelescope (← perm.instantiateForall (← inferType fn) fixed) fun ys _ =>
       mkLambdaFVars ys (mkAppN fn (perm.buildArgs fixed ys))
   let fn := mkConst member (info.levelParams.map mkLevelParam)
+  -- The two endpoints of the conclusion, `member fixedLeft ...` and `member' fixedRight ...`.
   let left ← specialize fn fixedLeft
   let right ← specialize (changeLevels fn) fixedRight
+  -- Walking their shared spine introduces the varying parameters: `xᵢ` alone where the
+  -- parameter is shared, `xᵢ`, `xᵢ'` and `hᵢ` where it depends on the representation. Every
+  -- binder is relatable here, as order parameters are fixed and were applied above.
   withRelatedTelescope ctx.representations left right ctx.selection
       (fun _ => pure true) (allowDependentBinders := true) fun t => do
-    -- The induction principle takes the left arguments first; their related copies
-    -- and premises are quantified inside the motive, in telescope order.
+    -- Everything the telescope introduced except the left arguments: the right copies and
+    -- the premises, in telescope order. A shared binder is a left argument, so it is kept out.
     let binders := t.binders.filter (!t.leftArgs.contains ·)
+    -- `R (member fixedLeft x₁ ... xₖ) (member' fixedRight x₁' ... xₖ')`, the relation read off
+    -- the result type. The endpoints are the specializing lambdas applied to the arguments.
     let body ← relationAt t.representations t.left.headBeta t.right.headBeta t.selection
+    -- `fun x₁ ... xₖ => ∀ (xᵢ' ...) (hᵢ ...), body`.
     mkLambdaFVars t.leftArgs (← mkForallFVars binders body)
 
 /-- Introduce a case of a functional induction principle, unfold the recursive call on both
@@ -105,6 +138,7 @@ private def proveByInduction (ctx : ProofContext) (source : Name) (members : Arr
   let some memberIdx := members.findIdx? (· == source)
     | throwError "parametricity: {source} is missing from its recursive block"
   let perm := perms.perms[memberIdx]!
+  -- FIXME: Improve this error message?
   unless perm.size == leftArgs.size do
     throwError "parametricity: unsupported parameters of the recursive definition {source}"
   let some inductName ← getFunInduct? (unfolding := false) (cases := false) source
@@ -113,12 +147,22 @@ private def proveByInduction (ctx : ProofContext) (source : Name) (members : Arr
   let induct := mkConst inductName (inductInfo.levelParams.map mkLevelParam)
   let fixedLeft := perm.pickFixed leftArgs
   let fixedRight := perm.pickFixed rightArgs
-  -- Lean records the parameter mapping for single functions; mutual blocks still need matching.
+  /- `source.induct` has the shape
+       `∀ (kept ...) (motive₀ ... motiveₙ₋₁) (case ...) (target ...), motive_memberIdx target ...`
+     where the motives are one per member of the block, in block order. `mkAppN` below
+     supplies the `kept ++ motives` prefix; the arguments of the kept parameters are the
+     ones computed here. They come from the fixed parameters, but not all of them: Lean
+     keeps only the parameters the principle actually mentions. -/
   let kept ← if let some info ← getFunIndInfoForInduct? inductName then
+      -- For a single function Lean records the mapping: `info.params` is aligned with the
+      -- function's arguments and marks each one as kept, a target, or dropped.
       pure <| (leftArgs.zip info.params).filterMap fun (arg, kind) =>
         if kind == .param then some arg else none
     else
-      -- The conclusion applies the motive of `source`; the motives are consecutive, in block order.
+      /- A mutual block has no such record, so recover the number of kept parameters from the
+      conclusion: it applies the motive of `source`, and the motives are consecutive in block
+      order, so the motive's position is `numKept + memberIdx`. The check also guards the
+      subtraction. -/
       let motivePos := (← getElimExprInfo induct).motivePos
       unless memberIdx ≤ motivePos do
         throwError "parametricity: unexpected induction principle {inductName}"
@@ -131,6 +175,12 @@ private def proveByInduction (ctx : ProofContext) (source : Name) (members : Arr
   for subgoal in ← withTransparency .instances <|
       goal.mvarId!.apply principle { newGoals := .all, synthAssignedInstances := false } do
     proveInductionCase ctx members subgoal
+  /- Induction proves the motive, which still quantifies over the right copies of
+  related varying arguments and their relation proofs. Specialize it at the current
+  arguments, e.g. `h x' hx` for `hx : R x x'`. `premises` records those proofs by
+  original parameter position, aligned with `rightArgs`; `localRules` only supplies
+  proof-search candidates. Reusing this mapping avoids searching for the premises
+  again. These are parameter-relation hypotheses, not induction hypotheses. -/
   let related := (perm.pickVarying (rightArgs.zip premises)).foldl (init := #[]) fun acc (arg, premise) =>
     match premise with
     | some hyp => acc ++ #[arg, hyp]
@@ -141,34 +191,43 @@ private def proveByInduction (ctx : ProofContext) (source : Name) (members : Arr
 do not unfold `Order.fix` or replace it with its unfolding equation. -/
 private def proveByFixpoint (ctx : ProofContext) (info : PartialFixpoint.EqnInfo)
     (left right : Expr) : MetaM Expr := do
+  -- CHECK `expose` looks relatively ad-hoc
   let expose (e : Expr) := deltaExpand e fun n => n == info.declName || n == info.declNameNonRec
   let left ← expose left
   let right ← expose right
   let ls := left.getAppArgs
   let rs := right.getAppArgs
   unless left.isAppOf ``Order.fix && right.isAppOf ``Order.fix &&
-      ls.size >= 4 && ls.size == rs.size do
+      ls.size ≥ 4 && ls.size == rs.size do
     throwError "parametricity: unsupported least-fixpoint representation of {info.declName}"
-  let args := ls.extract 4 ls.size
-  for l in args, r in rs.extract 4 rs.size do
+  -- `Order.fix` has 4 arguments, so the trailing arguments are for the recursive function itself
+  let args := ls.drop 4
+  for l in args, r in rs.drop 4 do
     unless independent ctx.representations (← inferType l) && independent ctx.representations (← inferType r) &&
         (← isDefEq l r) do
       throwError "parametricity: partial_fixpoint currently requires shared, representation-independent recursive arguments"
-  withLocalDeclD `recur ls[0]! fun f =>
-    withLocalDeclD `recur' rs[0]! fun g => do
+  let (αL, instL, fL, hmonoL) := (ls[0]!, ls[1]!, ls[2]!, ls[3]!)
+  let (αR, instR, fR, hmonoR) := (rs[0]!, rs[1]!, rs[2]!, rs[3]!)
+  -- The general idea here is to use `fix_rel`. For that to work, the most important
+  -- part is to show its last two premises, namely
+  -- 1. `AdmissibleRel R`, where `R : αL → αR → Prop`, corresponding to `hadmGoal`
+  -- 2. `∀ (x : αL) (y : αR), R x y → R (f x) (g y)`, corresponding to `hstep`
+  withLocalDeclD `recur αL fun f =>
+    withLocalDeclD `recur' αR fun g => do
       let related ← mkRelation ctx f g
       let relation ← mkLambdaFVars #[f, g] related
       let hadmGoal ← mkFreshExprSyntheticOpaqueMVar (← mkAppOptM ``AdmissibleRel
-        #[some ls[0]!, some rs[0]!, some ls[1]!, some rs[1]!, some relation])
+        #[some αL, some αR, some instL, some instR, some relation])
       proveGoal ctx hadmGoal.mvarId!
       let hstep ← withLocalDeclD `recur_rel related fun h => do
-        let proof ← provePair ctx (mkApp ls[2]! f) (mkApp rs[2]! g) (some relation)
+        let proof ← provePair ctx (mkApp fL f) (mkApp fR g) (some relation)
         mkLambdaFVars #[f, g, h] proof
       let proof ← mkAppOptM ``fix_rel
-        (#[ls[0]!, rs[0]!, ls[1]!, rs[1]!, relation, ls[2]!, rs[2]!,
-          ls[3]!, rs[3]!, ← instantiateMVars hadmGoal, hstep].map some)
+        (#[αL, αR, instL, instR, relation, fL, fR,
+          hmonoL, hmonoR, ← instantiateMVars hadmGoal, hstep].map some)
       return mkAppN proof args
 
+-- FIXME: The code here about "exactly one" representation is very weird
 private def deriveMember (source : Name) (block? : Option (Array Name × FixedParamPerms))
     (fixpoint? : Option PartialFixpoint.EqnInfo) (spec? : Option ReprSpec)
     (name? : Option Name) : MetaM Unit := do
@@ -177,17 +236,14 @@ private def deriveMember (source : Name) (block? : Option (Array Name × FixedPa
   unless info.safety == .safe do
     throwError "parametricity: unsafe or partial definitions are unsupported: {source}"
   let theoremName := name?.getD (source ++ `parametric)
-  -- Identify the representation and the universes both interpretations must share.
-  -- The binders the theorem quantifies over come from the walk below, so this
-  -- telescope only makes those decisions.
-  let (selection, targetLevels) ← forallTelescope info.type fun params result => do
-    let result ← whnf result
+  -- Resolve the frontend's selection and the order-parameter extension.
+  let (selection, hasOrderParameters) ← forallTelescope info.type fun params _ => do
     let spec ← match spec? with
       | some spec => pure spec
       | none => do
         let some i ← params.findIdxM? fun param => do
             let bi := (← param.fvarId!.getDecl).binderInfo
-            return bi.isImplicit || bi.isStrictImplicit
+            pure <| bi.isImplicit || bi.isStrictImplicit
           | throwError "parametricity: {source} has no implicit parameter; use `(repr := name)` to select a representation"
         pure { indices := #[i] }
     -- A program's representation is one of its own parameters, and **exactly one**
@@ -203,58 +259,50 @@ private def deriveMember (source : Name) (block? : Option (Array Name × FixedPa
       names := names.push (← param.fvarId!.getUserName)
     let selection := RepresentationSelection.markedOrNamed names
     let candidates ← params.filterM fun param => do
-      return (← selection.select (← param.fvarId!.getUserName) (← inferType param)).isSome
-    let #[repr] := candidates
+      pure (← selection.select (← param.fvarId!.getUserName) (← inferType param)).isSome
+    let #[_] := candidates
       | throwError "parametricity: select exactly one representation parameter of {source} with `(repr := name)`"
-    let mut sharedLevels ← sharedIndexLevels (← inferType repr)
-    sharedLevels ← sharedRepresentationLevels #[repr] result sharedLevels selection
-    -- Every dictionary relation the walk below needs has to exist already; one that
-    -- does not is reported where it is met, not guessed at here.
-    for param in params do
-      if param != repr then
-        sharedLevels ← sharedRepresentationLevels #[repr] (← inferType param) sharedLevels selection
-    return (selection, (renameLevelParams info.levelParams.toArray sharedLevels).toList)
-  let changeLevels (e : Expr) := e.instantiateLevelParams info.levelParams targetLevels
+    let hasOrderParameters ← params.anyM fun param => do
+      pure (isOrderParameter (← inferType param))
+    pure (selection, hasOrderParameters)
+  let relateBinder (dom : Expr) : MetaM Bool := pure !(isOrderParameter dom)
+  let levelParamsArray := info.levelParams.toArray
+  let (typeRelation, targetLevels) ← mkTypeRelation info.type levelParamsArray selection
+    (relateBinder := relateBinder) (allowDependentBinders := hasOrderParameters)
+  let changeLevels (e : Expr) := e.instantiateLevelParamsArray levelParamsArray targetLevels
   let sourceConst := mkConst source (info.levelParams.map .param)
-  withRelatedTelescope #[] sourceConst (mkConst source targetLevels) selection
-      (fun dom => return !(isOrderParameter dom)) (allowDependentBinders := true) fun t => do
-    let some pair := t.representations[0]?
+  let targetConst := mkConst source targetLevels.toList
+  let statement ← Meta.instantiateLambda typeRelation #[sourceConst, targetConst]
+  -- FIXME: Is it possible to merge this `withRelatedTelescope` into `mkTypeRelation`?
+  -- Open the endpoints only to build the proof; the statement is fixed above.
+  withRelatedTelescope #[] sourceConst targetConst selection relateBinder
+      (allowDependentBinders := hasOrderParameters) fun t => do
+    let ⟨representations, _, left, right, leftArgs, rightArgs, premises, _⟩ := t
+    let some pair := representations[0]?
       | throwError "parametricity: the selected representation was never reached"
-    let ctx : ProofContext := ⟨t.representations, selection⟩
-    let leftArgs := t.leftArgs
-    let rightArgs := t.rightArgs
-    let premises := t.premises
-    let left := t.left
-    let right := t.right
-    -- Keep the established binder order: the shared parameters, then the second
-    -- interpretation and the base relation, then the duplicates and their premises.
-    let mut duplicates := #[]
-    for leftArg in leftArgs, rightArg in rightArgs, hyp in premises do
-      if leftArg == pair.source || leftArg == rightArg then continue
-      duplicates := duplicates.push rightArg
-      if let some h := hyp then duplicates := duplicates.push h
-    let extra := duplicates
+    let ctx : ProofContext := ⟨representations, selection⟩
     let finish (adm? : Option Expr) : MetaM Unit := do
       let proof ← if let some fixpoint := fixpoint? then
           proveByFixpoint ctx fixpoint left right
         else match block? with
           | none =>
-            let rightBody := info.value.instantiateLevelParams info.levelParams targetLevels
+            let rightBody := info.value.instantiateLevelParamsArray levelParamsArray targetLevels
             provePair ctx (info.value.beta leftArgs) (rightBody.beta rightArgs)
           | some (members, perms) =>
             proveByInduction ctx source members perms leftArgs rightArgs premises changeLevels
       let proof ← instantiateMVars proof
       -- Callers inherit admissibility only when the proof actually uses it.
-      let binders := leftArgs ++ #[pair.target, pair.relation] ++ extra ++
-        adm?.toArray.filter (·.occurs proof)
-      let type ← instantiateMVars (← mkForallFVars binders (← mkRelation ctx left right))
+      let extra := adm?.toArray.filter (·.occurs proof)
+      let binders := t.binders ++ extra
+      let type ← instantiateMVars (← if extra.isEmpty then pure statement
+        else mkForallFVars binders (← mkRelation ctx left right))
       let value ← mkLambdaFVars binders proof (generalizeNondepLet := false)
       if type.hasMVar || value.hasMVar || type.hasFVar || value.hasFVar then
         throwError "parametricity: unresolved variables in the generated theorem"
       let levels := (collectLevelParams (collectLevelParams {} type) value).params.toList
       addDecl <| .thmDecl { name := theoremName, levelParams := levels, type, value }
       registerParametric theoremName
-    let admType? ← if ← leftArgs.anyM fun p => do pure (isOrderParameter (← inferType p)) then
+    let admType? ← if hasOrderParameters then
         observing? <| withSharedIndices pair.source pair.target fun indices _ _ => do
           let type ← mkAppM ``AdmissibleRel #[mkAppN pair.relation indices]
           mkForallFVars indices type

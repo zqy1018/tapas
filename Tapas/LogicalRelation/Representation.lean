@@ -77,6 +77,7 @@ structure RepresentationSelection where
   binder's two interpretations, or `none` when it is an ordinary binder. -/
   select : Name → Expr → MetaM (Option Expr)
 
+-- FIXME: The `inferType` below might be optimized
 /-- Run `k` on the two interpretations applied to a shared list of indices, once
 the whole telescope has been opened. Both must end in a sort, and their index
 domains must agree, since one list of indices stands for both. -/

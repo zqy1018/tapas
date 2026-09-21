@@ -48,7 +48,7 @@ translation. The current range syntax reaches `List.forIn'` on its own. -/
   show R (forIn' r init f) (forIn' r init f')
   rw [Std.Legacy.Range.forIn'_eq_forIn'_range' r init f,
       Std.Legacy.Range.forIn'_eq_forIn'_range' r init f']
-  exact listForIn'Rel _ _ _ R hm _ (fun a h b => hf a _ b)
+  exact listForIn'Rel R hm _ _ _ _ (fun a h b => hf a _ b)
 
 /-! ## Monadic traversals -/
 
