@@ -24,8 +24,8 @@ telescope, keep the indices shared, and put a binary relation at the final sort.
 | Representation | Base relation |
 | --- | --- |
 | `A : Type u` | `A → B → Prop` |
-| `repr : Ty → Type u` | `∀ {t : Ty}, repr t → repr' t → Prop` |
-| `m : Type u → Type v` | `∀ {α : Type u}, m α → n α → Prop` |
+| `repr : Ty → Type u` | `∀ ⦃t : Ty⦄, repr t → repr' t → Prop` |
+| `m : Type u → Type v` | `∀ ⦃α : Type u⦄, m α → n α → Prop` |
 
 The two interpretations share every index but need not share the final universe, so
 `repr t` may be a runtime value where `repr' t` is a syntax tree. 
