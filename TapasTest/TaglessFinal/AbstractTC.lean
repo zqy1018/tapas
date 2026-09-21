@@ -1,6 +1,6 @@
 import Tapas
 
-namespace TapasTest.AbstractTC
+namespace TapasTest.TaglessFinal.AbstractTC
 
 class Lit (A : Type) where
   lit : Nat → A
@@ -101,4 +101,4 @@ error: Invalid configuration option `noSuchField` for `TaglessFinal.AbstractTCAr
 #guard_msgs in
 def unknownField {A : Type} := abstractTCargs% (noSuchField := true) (Lit.lit (A := A) 1)
 
-end TapasTest.AbstractTC
+end TapasTest.TaglessFinal.AbstractTC
