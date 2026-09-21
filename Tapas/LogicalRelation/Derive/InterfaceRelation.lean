@@ -20,11 +20,26 @@ operation's type, reach the representations an operation binds of its own.
 For an interface `C ps` whose representation parameter is `repr`, the declaration is
 
 ```lean
-class C.Rel {ps} {repr' : ..} (R : ∀ {is}, repr is → repr' is → Prop)
-    (left : C ps) (right : C ps[repr := repr']) : Prop
+class C.Rel {ps} {repr' : ..} (R : ∀ ⦃is⦄, repr is → repr' is → Prop)
+    [left : C ps] [right : C ps[repr := repr']] : Prop
 ```
 
-with one field per operation, in the order of `getStructureFieldsFlattened`:
+The two dictionaries are instance-implicit when `C` is a class, so `C.Rel R` finds
+them, and explicit when `C` is a structure that is not one, since there is then no
+search to find them with. A dictionary that instance search would not pick is
+written by name either way, as in `C.Rel (right := ..) R`. A parameter of `C` that
+`R` does not determine has to be written too, as in `MonadStateOf.Rel (σ := Nat) R`.
+
+At a use site `R` is the only argument left to determine the two representations,
+which is what the strict implicit indices of a relation type are for; the comment on
+`withSharedIndices` explains them.
+
+A structure instance synthesizes the dictionaries rather than reading them off the
+expected type, so a relation between dictionaries that are not instances is built
+through the constructor, with `(_)` — a parenthesized hole, which is not an instance
+hole — for each of them: `C.Rel.mk (left := (_)) (right := (_)) R (op := ..)`.
+
+There is one field per operation, in the order of `getStructureFieldsFlattened`:
 **inherited operations are included, parent subobjects are not**.
 For `Monad.Rel`, the `bind` field is
 
@@ -159,8 +174,14 @@ def deriveInterfaceRelation (interfaceName : Name) (selection : RepresentationSe
       -- Infer the target universes from the shared parameters and new representation.
       let rightType ← mkAppOptM interfaceName ((params.set! idx repr').map some)
       let rightType ← instantiateMVars rightType
-      withLocalDeclD `left leftType fun left =>
-        withLocalDeclD `right rightType fun right => do
+      -- When the interface is a class its dictionaries are found by instance search,
+      -- which is what a use site almost always wants; a non-class structure has no
+      -- search to fall back on, so its dictionaries stay explicit. Either way a
+      -- dictionary that search would not pick is still reachable by name, as in
+      -- `C.Rel (right := ..) R`.
+      let dictionaryBinder := if isClass env interfaceName then .instImplicit else .default
+      withLocalDecl `left dictionaryBinder leftType fun left =>
+        withLocalDecl `right dictionaryBinder rightType fun right => do
           -- One condition per operation, inherited ones flattened in.
           let fieldNames := getStructureFieldsFlattened env interfaceName false
           let fields ← fieldNames.mapM fun field => do

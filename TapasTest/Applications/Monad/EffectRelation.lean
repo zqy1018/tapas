@@ -8,16 +8,16 @@ universe u v w q
 
 /- Every state operation uses the actual dictionaries and shares pure arguments. -/
 example {σ : Type u} {m : Type u → Type v} {n : Type u → Type w}
-    (R : ComputationRelation m n) (left : MonadStateOf σ m) (right : MonadStateOf σ n)
-    (h : MonadStateOf.Rel R left right) (s : σ) {α : Type u} (f : σ → α × σ) :
+    (R : ComputationRelation m n) [left : MonadStateOf σ m] [right : MonadStateOf σ n]
+    (h : MonadStateOf.Rel (σ := σ) R) (s : σ) {α : Type u} (f : σ → α × σ) :
     R left.get right.get ∧ R (left.set s) (right.set s) ∧
       R (left.modifyGet f) (right.modifyGet f) :=
   ⟨h.get, h.set s, h.modifyGet f⟩
 
 /- Exception universes are independent of value and computation universes. -/
 example {ε : Type q} {m : Type u → Type v} {n : Type u → Type w}
-    (R : ComputationRelation m n) (left : MonadExceptOf ε m) (right : MonadExceptOf ε n)
-    (h : MonadExceptOf.Rel R left right) {α : Type u}
+    (R : ComputationRelation m n) [left : MonadExceptOf ε m] [right : MonadExceptOf ε n]
+    (h : MonadExceptOf.Rel (ε := ε) R) {α : Type u}
     (x : m α) (y : n α) (k : ε → m α) (k' : ε → n α)
     (hxy : R x y) (hk : ∀ e, R (k e) (k' e)) :
     R (left.tryCatch x k) (right.tryCatch y k') :=
@@ -25,16 +25,16 @@ example {ε : Type q} {m : Type u → Type v} {n : Type u → Type w}
 
 example {ρ : Type u} {m : Type u → Type v} {n : Type u → Type w}
     (R : ComputationRelation m n)
-    (left : MonadWithReaderOf ρ m) (right : MonadWithReaderOf ρ n)
-    (h : MonadWithReaderOf.Rel R left right) {α : Type u}
+    [left : MonadWithReaderOf ρ m] [right : MonadWithReaderOf ρ n]
+    (h : MonadWithReaderOf.Rel (ρ := ρ) R) {α : Type u}
     (f : ρ → ρ) (x : m α) (y : n α) (hxy : R x y) :
     R (left.withReader f x) (right.withReader f y) :=
   h.withReader f x y hxy
 
 /- The base monad of a lift stays fixed; only its target is translated. -/
 example {base : Type u → Type q} {m : Type u → Type v} {n : Type u → Type w}
-    (R : ComputationRelation m n) (left : MonadLiftT base m) (right : MonadLiftT base n)
-    (h : MonadLiftT.Rel R left right) {α : Type u} (x : base α) :
+    (R : ComputationRelation m n) [left : MonadLiftT base m] [right : MonadLiftT base n]
+    (h : MonadLiftT.Rel (m := base) R) {α : Type u} (x : base α) :
     R (left.monadLift x) (right.monadLift x) :=
   h.monadLift x
 
@@ -48,13 +48,13 @@ derive_effect_rel ScopedEmit
 
 /- Inherited operations and user-defined higher-order operations use the same generator. -/
 example {ω : Type u} {m : Type u → Type v} {n : Type u → Type w}
-    (R : ComputationRelation m n) (left : ScopedEmit ω m) (right : ScopedEmit ω n)
-    (h : ScopedEmit.Rel R left right) (a : ω) : R (left.emit a) (right.emit a) :=
+    (R : ComputationRelation m n) [left : ScopedEmit ω m] [right : ScopedEmit ω n]
+    (h : ScopedEmit.Rel (ω := ω) R) (a : ω) : R (left.emit a) (right.emit a) :=
   h.emit a
 
 example {ω : Type u} {m : Type u → Type v} {n : Type u → Type w}
-    (R : ComputationRelation m n) (left : ScopedEmit ω m) (right : ScopedEmit ω n)
-    (h : ScopedEmit.Rel R left right) {α : Type u}
+    (R : ComputationRelation m n) [left : ScopedEmit ω m] [right : ScopedEmit ω n]
+    (h : ScopedEmit.Rel (ω := ω) R) {α : Type u}
     (x : m α) (y : n α) (k : ω → m α) (k' : ω → n α)
     (hxy : R x y) (hk : ∀ a, R (k a) (k' a)) :
     R (left.scope x k) (right.scope y k') :=
@@ -75,7 +75,7 @@ derive_effect_rel AliasedScope
 
 example {m : Type u → Type v} {n : Type u → Type w}
     (R : ComputationRelation m n) (left : AliasedScope m) (right : AliasedScope n)
-    (h : AliasedScope.Rel R left right) {α : Type u}
+    (h : AliasedScope.Rel (left := left) (right := right) R) {α : Type u}
     (x : m α) (y : n α) (k : α → m α) (k' : α → n α)
     (hxy : R x y) (hk : ∀ a, R (k a) (k' a)) :
     R (left.scope x k) (right.scope y k') :=
@@ -90,14 +90,14 @@ derive_effect_rel Choose
 example {α : Type u} {m : Type u → Type v} {n : Type u → Type w}
     (R : ComputationRelation m n) (p : Nat → α → Prop)
     (left : ∀ x, Choose (p x) m) (right : ∀ x, Choose (p x) n)
-    (h : ∀ x, Choose.Rel R (left x) (right x)) (x : Nat) :
+    (h : ∀ x, Choose.Rel (left := left x) (right := right x) R) (x : Nat) :
     R (left x).choose (right x).choose :=
   (h x).choose
 
 def choiceFamilyRelation {α : Type u} {m : Type u → Type v} {n : Type u → Type w}
     (R : ComputationRelation m n) (p : Nat → α → Prop)
     (left : ∀ x, Choose (p x) m) (right : ∀ x, Choose (p x) n) : Prop :=
-  ∀ x, Choose.Rel R (left x) (right x)
+  ∀ x, Choose.Rel (left := left x) (right := right x) R
 
 open Lean Meta Elab Command in
 run_cmd liftTermElabM do
@@ -111,7 +111,7 @@ run_cmd liftTermElabM do
 
 /- The generated class can be constructed with ordinary structure syntax. -/
 example {σ : Type u} {m : Type u → Type v} (inst : MonadStateOf σ m) :
-    MonadStateOf.Rel (fun {_} x y => x = y) inst inst where
+    MonadStateOf.Rel (left := inst) (right := inst) (fun {_} x y => x = y) where
   get := rfl
   set _ := rfl
   modifyGet _ := rfl
@@ -120,15 +120,15 @@ abbrev firstReader : MonadReaderOf Nat Id where read := 1
 abbrev secondReader : MonadReaderOf Nat Id where read := 2
 
 /- Being instances of the same capability does not make dictionaries related. -/
-example : ¬ MonadReaderOf.Rel (fun {_} x y => x = y) firstReader secondReader := by
+example : ¬ MonadReaderOf.Rel (left := firstReader) (right := secondReader)
+    (fun {_} x y => x = y) := by
   intro h
   have bad := h.read
   change (1 : Nat) = 2 at bad
   cases bad
 
 /- A concrete graph relation exercises the complete Monad builder. -/
-theorem idToOption : Monad.Rel (fun {α} (x : Id α) (y : Option α) => some x.run = y)
-    inferInstance inferInstance := by
+theorem idToOption : Monad.Rel (fun {α} (x : Id α) (y : Option α) => some x.run = y) := by
   apply Monad.Rel.ofPureBind
   · intro α a
     rfl
@@ -144,8 +144,7 @@ example {α β : Type} (f : Id (α → β)) (x : Unit → Id α) :
 abbrev dropsMapConst : Monad Option :=
   { (inferInstance : Monad Option) with mapConst := fun _ _ => none }
 
-example : ¬ Monad.Rel (fun {α : Type} (x y : Option α) => x = y)
-    (inferInstance : Monad Option) dropsMapConst := by
+example : ¬ Monad.Rel (right := dropsMapConst) (fun {α : Type} (x y : Option α) => x = y) := by
   intro h
   have bad := h.mapConst (α := Unit) (β := Unit) () (some ()) (some ()) rfl
   change some () = (none : Option Unit) at bad
@@ -157,7 +156,7 @@ class FixedReader (m : Type → Type) where
 derive_effect_rel FixedReader
 
 example {m n : Type → Type} (R : ComputationRelation m n)
-    (left : FixedReader m) (right : FixedReader n) (h : FixedReader.Rel R left right) :
+    [left : FixedReader m] [right : FixedReader n] (h : FixedReader.Rel R) :
     R left.read right.read := by
   cases h with
   | mk related => exact related
@@ -168,8 +167,8 @@ class SharedUniverse (σ : Type v) (m : Type u → Type v) where
 derive_effect_rel SharedUniverse
 
 example {σ : Type v} {m n : Type u → Type v} (R : ComputationRelation m n)
-    (left : SharedUniverse σ m) (right : SharedUniverse σ n)
-    (h : SharedUniverse.Rel R left right) (s : σ) {α : Type u} (x : α) :
+    [left : SharedUniverse σ m] [right : SharedUniverse σ n]
+    (h : SharedUniverse.Rel (σ := σ) R) (s : σ) {α : Type u} (x : α) :
     R (left.send s x) (right.send s x) := h.send s x
 
 /- Missing type support must fail before any relation declaration is installed. -/
@@ -241,12 +240,12 @@ derive_effect_rel Batch
 /- Relators apply in argument and result positions, to handlers, nested containers, and
 arguments free of the monad (`Sum.LiftRel Eq R`), also when the computation universe varies. -/
 example {m : Type u → Type v} {n : Type u → Type w} (R : ComputationRelation m n)
-    (left : Batch m) (right : Batch n) (h : Batch.Rel R left right) {α : Type u}
+    [left : Batch m] [right : Batch n] (h : Batch.Rel R) {α : Type u}
     (x : m α) (y : n α) (hxy : R x y) :
-    Option.Rel R (left.first? [x]) (right.first? [y]) ∧
+    Option.Rel (R (α := α)) (left.first? [x]) (right.first? [y]) ∧
       ListRel (fun f g => ∀ i, R (f i) (g i)) left.handlers right.handlers ∧
       R (left.split (.inr x)) (right.split (.inr y)) ∧
-      Option.Rel (ListRel R) (left.pending (α := α)) (right.pending (α := α)) ∧
+      Option.Rel (ListRel (R (α := α))) (left.pending (α := α)) (right.pending (α := α)) ∧
       (left.tagged x).1 = (right.tagged y).1 ∧ R (left.tagged x).2 (right.tagged y).2 :=
   ⟨h.first? [x] [y] (.cons hxy .nil), h.handlers, h.split (.inr x) (.inr y) (.inr hxy), h.pending,
     (h.tagged x y hxy).fst, (h.tagged x y hxy).snd⟩
@@ -265,7 +264,7 @@ derive_effect_rel Recover
 
 /- Arguments that a relator does not lift are shared. -/
 example {ε : Type u} {m : Type u → Type v} {n : Type u → Type w} (R : ComputationRelation m n)
-    (left : Recover ε m) (right : Recover ε n) (h : Recover.Rel R left right) {α : Type u}
+    [left : Recover ε m] [right : Recover ε n] (h : Recover.Rel (ε := ε) R) {α : Type u}
     (e : ε) : R (left.recover (.error e : Except ε (m α))) (right.recover (.error e)) :=
   h.recover _ _ (.error e)
 
@@ -332,8 +331,8 @@ derive_type_rel Program (repr := m)
 capability the program uses, at possibly different computation universes. -/
 def expectedProgramRel {σ α : Type u} (p : Program.{u, v} σ α) (q : Program.{u, w} σ α) : Prop :=
   ∀ {m : Type u → Type v} {n : Type u → Type w} (R : ComputationRelation m n)
-    [lm : Monad m] [rn : Monad n], Monad.Rel R lm rn →
-    ∀ [ls : MonadStateOf σ m] [rs : MonadStateOf σ n], MonadStateOf.Rel R ls rs →
+    [lm : Monad m] [rn : Monad n], Monad.Rel R →
+    ∀ [ls : MonadStateOf σ m] [rs : MonadStateOf σ n], MonadStateOf.Rel (σ := σ) R →
       R (@p m lm ls) (@q n rn rs)
 
 -- `@p` keeps Lean from inserting the program's implicit arguments at the use site, as it also
@@ -349,10 +348,10 @@ class Runner (m : Type u → Type v) where
 derive_effect_rel Runner (monad := m, n)
 
 example {m : Type u → Type v} {n : Type u → Type w} (R : ComputationRelation m n)
-    (left : Runner m) (right : Runner n) (h : Runner.Rel R left right) {α : Type u}
+    [left : Runner m] [right : Runner n] (h : Runner.Rel R) {α : Type u}
     (p : {k : Type u → Type v} → [Monad k] → k α) (q : {k : Type u → Type w} → [Monad k] → k α)
     (hpq : ∀ {k : Type u → Type v} {k' : Type u → Type w} (S : ComputationRelation k k')
-      [lk : Monad k] [lk' : Monad k'], Monad.Rel S lk lk' → S (p (k := k)) (q (k := k'))) :
+      [Monad k] [Monad k'], Monad.Rel S → S (p (k := k)) (q (k := k'))) :
     R (left.run p) (right.run q) :=
   h.run p q hpq
 

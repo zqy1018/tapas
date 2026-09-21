@@ -21,9 +21,9 @@ derive_interface_rel Atom (repr := repr)
 
 example {repr : Bool → Type u} {repr' : Bool → Type v}
     (left : Atom repr) (right : Atom repr') :
-    Atom.Rel (by
+    Atom.Rel (left := left) (right := right) (by
       guard_target =ₛ IndexedRelation repr repr'
-      exact fun {_} _ _ => True) left right := by constructor <;> intros <;> trivial
+      exact fun {_} _ _ => True) := by constructor <;> intros <;> trivial
 
 end Indexed
 
@@ -40,16 +40,16 @@ derive_interface_rel Atom (repr := m)
 -- Both aliases fit, but the higher-priority ComputationRelation must be used.
 example {m : Type u → Type v} {n : Type u → Type w}
     (left : Atom m) (right : Atom n) :
-    Atom.Rel (by
+    Atom.Rel (left := left) (right := right) (by
       guard_target =ₛ ComputationRelation m n
       fail_if_success guard_target =ₛ IndexedRelation m n
-      exact fun {_} _ _ => True) left right := by constructor <;> intros <;> trivial
+      exact fun {_} _ _ => True) := by constructor <;> intros <;> trivial
 
 def monadic := infer_effects% pure (1 : Nat)
 derive_parametric monadic
 
 example {m n : Type → Type} [lm : Monad m] [rn : Monad n]
-    (h : Monad.Rel (fun {_} _ _ => True) lm rn) : True :=
+    (h : Monad.Rel (left := lm) (right := rn) (fun {_} _ _ => True)) : True :=
   monadic.parametric (m := m) (m' := n) (by
     guard_target =ₛ ComputationRelation m n
     exact fun {_} _ _ => True) h
@@ -67,9 +67,9 @@ class Atom (m : Type → Type) where
 derive_interface_rel Atom (repr := m)
 
 example {m n : Type → Type} (left : Atom m) (right : Atom n) :
-    Atom.Rel (by
+    Atom.Rel (left := left) (right := right) (by
       guard_target =ₛ IndexedRelation m n
-      exact fun {_} _ _ => True) left right := by constructor <;> intros <;> trivial
+      exact fun {_} _ _ => True) := by constructor <;> intros <;> trivial
 
 end PreferIndexed
 
@@ -106,9 +106,9 @@ derive_interface_rel Atom (repr := repr)
 
 -- Neither one-index alias fits: the generated telescope must remain expanded.
 example {repr repr' : Nat → Bool → Type} (left : Atom repr) (right : Atom repr') :
-    Atom.Rel (by
-      guard_target =ₛ ∀ {i : Nat} {j : Bool}, repr i j → repr' i j → Prop
-      exact fun {_ _} _ _ => True) left right := by constructor <;> intros <;> trivial
+    Atom.Rel (left := left) (right := right) (by
+      guard_target =ₛ ∀ ⦃i : Nat⦄ ⦃j : Bool⦄, repr i j → repr' i j → Prop
+      exact fun {_ _} _ _ => True) := by constructor <;> intros <;> trivial
 
 end MultipleIndices
 
@@ -121,9 +121,9 @@ class Atom (m : (a : Type) → Type) where
 derive_interface_rel Atom (repr := m)
 
 example {m n : Type → Type} (left : Atom m) (right : Atom n) :
-    Atom.Rel (by
-      guard_target =ₛ ∀ {a : Type}, m a → n a → Prop
-      exact fun {_} _ _ => True) left right := by constructor <;> intros <;> trivial
+    Atom.Rel (left := left) (right := right) (by
+      guard_target =ₛ ∀ ⦃a : Type⦄, m a → n a → Prop
+      exact fun {_} _ _ => True) := by constructor <;> intros <;> trivial
 
 end Unregistered
 

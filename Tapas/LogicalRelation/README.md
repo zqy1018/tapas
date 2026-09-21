@@ -76,7 +76,7 @@ class Arith (A : Type u) where
   add : A → A → A
 
 derive_interface_rel Arith (repr := A)
--- Arith.Rel R left right : Prop
+-- Arith.Rel R : Prop                           -- with [left : Arith A] [right : Arith B]
 -- Arith.Rel.lit : ∀ n, R (left.lit n) (right.lit n)
 -- Arith.Rel.add : ∀ x x', R x x' → ∀ y y', R y y' → R (left.add x y) (right.add x' y')
 ```

@@ -16,8 +16,8 @@ def indexedAtom {I : Sort u} (i : I) :=
 derive_parametric indexedAtom (repr := repr)
 
 example {I : Sort u} {repr : I → Type v} {repr' : I → Type w}
-    (R : IndexedRelation repr repr') [left : IndexedAtom repr] [right : IndexedAtom repr']
-    (h : IndexedAtom.Rel R left right) (i : I) :
+    (R : IndexedRelation repr repr') [IndexedAtom repr] [IndexedAtom repr']
+    (h : IndexedAtom.Rel R) (i : I) :
     R (indexedAtom i (repr := repr)) (indexedAtom i (repr := repr')) :=
   indexedAtom.parametric i R h
 
@@ -34,8 +34,8 @@ class Language (repr : Ty → Type u) where
 derive_interface_rel Language (repr := repr)
 
 example {repr : Ty → Type u} {repr' : Ty → Type v}
-    (R : IndexedRelation repr repr') (left : Language repr) (right : Language repr')
-    [Language.Rel R left right] {a b} (f : repr a → repr b) (g : repr' a → repr' b)
+    (R : IndexedRelation repr repr') [left : Language repr] [right : Language repr']
+    [Language.Rel R] {a b} (f : repr a → repr b) (g : repr' a → repr' b)
     (h : ∀ x y, R x y → R (f x) (g y)) :
     R (left.lam f) (right.lam g) := Language.Rel.lam f g h
 
@@ -74,8 +74,7 @@ instance : Language Wrapped where
 
 def unwrapRelation : IndexedRelation Wrapped Eval := fun {_} x y => x.down = y
 
-abbrev unwrapCompatible : Language.Rel unwrapRelation
-    (inferInstance : Language Wrapped) (inferInstance : Language Eval) where
+abbrev unwrapCompatible : Language.Rel unwrapRelation where
   lit _ := rfl
   add _ _ hx _ _ hy := by cases hx; cases hy; rfl
   lam f g h := by
@@ -89,8 +88,8 @@ theorem six_correct : (six (repr := Wrapped)).down = six (repr := Eval) :=
 #guard Nat.beq (six (repr := Wrapped)).down 6
 
 example {repr : Ty → Type u} {repr' : Ty → Type v}
-    (R : IndexedRelation repr repr') (left : Language repr) (right : Language repr')
-    [Language.Rel R left right] {a b} (f : repr (.arrow a b)) (g : repr' (.arrow a b))
+    (R : IndexedRelation repr repr') [left : Language repr] [right : Language repr']
+    [Language.Rel R] {a b} (f : repr (.arrow a b)) (g : repr' (.arrow a b))
     (hf : R f g) (x : repr a) (y : repr' a) (hx : R x y) :
     R (left.app f x) (right.app g y) := Language.Rel.app f g hf x y hx
 
@@ -139,7 +138,7 @@ def iterate : Nat → repr .nat
 derive_parametric iterate (repr := repr)
 
 example {repr : Ty → Type u} {repr' : Ty → Type v} (R : IndexedRelation repr repr')
-    (left : Language repr) (right : Language repr') (h : Language.Rel R left right) (n : Nat) :
+    [Language repr] [Language repr'] (h : Language.Rel R) (n : Nat) :
     R (iterate (repr := repr) n) (iterate (repr := repr') n) := iterate.parametric R h n
 
 -- An index need not be a literal: it may be any expression that reduces to one.
@@ -175,7 +174,7 @@ def atIndex (b : Bool) : repr (tyAt b) :=
 derive_parametric atIndex (repr := repr)
 
 example {repr : Ty → Type u} {repr' : Ty → Type v} (R : IndexedRelation repr repr')
-    (left : Language repr) (right : Language repr') (h : Language.Rel R left right) (b : Bool) :
+    [Language repr] [Language repr'] (h : Language.Rel R) (b : Bool) :
     R (atIndex (repr := repr) b) (atIndex (repr := repr') b) := atIndex.parametric R h b
 
 abbrev arrows : Nat → Ty
@@ -206,7 +205,7 @@ derive_parametric atIndexOpaque (repr := repr)
 -- It is provable by hand, so the limit is the transparency the search reduces at, not the
 -- statement: `exact` closes each branch after an ordinary `cases`.
 example {repr : Ty → Type u} {repr' : Ty → Type v} (R : IndexedRelation repr repr')
-    (left : Language repr) (right : Language repr') (h : Language.Rel R left right) (b : Bool) :
+    [Language repr] [Language repr'] (h : Language.Rel R) (b : Bool) :
     R (atIndexOpaque (repr := repr) b) (atIndexOpaque (repr := repr') b) := by
   cases b
   · exact h.lam _ _ (fun x y hxy => hxy)

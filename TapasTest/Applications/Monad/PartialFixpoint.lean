@@ -19,10 +19,10 @@ abbrev Target := ReaderT (Nat × Bool) Option
 def R : ComputationRelation Source Target := fun {_} x y =>
   ∀ cfg cfg', cfg = cfg'.1 → x cfg = y cfg'
 
-theorem relation_admissible {α : Type} : AdmissibleRel (R (α := α)) :=
+theorem relation_admissible ⦃α : Type⦄ : AdmissibleRel (R (α := α)) :=
   AdmissibleRel.pi (fun _ _ _ => AdmissibleRel.eq)
 
-theorem monadRel : Monad.Rel R (inferInstance : Monad Source) (inferInstance : Monad Target) :=
+theorem monadRel : Monad.Rel R :=
   Monad.Rel.ofPureBind R
     (fun _ _ _ _ => rfl)
     (by
@@ -72,7 +72,7 @@ def CallsRelated (f : Nat → Source Nat) (g : Nat → Target Nat) : Prop :=
   ∀ s s', s = s' → R (f s) (g s')
 
 theorem calls_admissible : AdmissibleRel CallsRelated :=
-  AdmissibleRel.pi (fun _ _ _ => relation_admissible)
+  AdmissibleRel.pi (fun _ _ _ => @relation_admissible _)
 
 theorem bodies_related (f : Nat → Source Nat) (g : Nat → Target Nat)
     (h : CallsRelated f g) : CallsRelated (body sourceStep f) (body targetStep g) := by
@@ -134,8 +134,7 @@ theorem target_diverges (flag : Bool) (s : Nat) (hs : s ≠ 0) :
 def Successful : ComputationRelation Option Option := fun {_} x y =>
   ∃ a, x = some a ∧ y = some a
 
-theorem successful_monadRel : Monad.Rel Successful
-    (inferInstance : Monad Option) (inferInstance : Monad Option) :=
+theorem successful_monadRel : Monad.Rel Successful :=
   Monad.Rel.ofPureBind Successful
     (fun a => ⟨a, rfl, rfl⟩)
     (by
@@ -216,9 +215,9 @@ partial_fixpoint
 derive_parametric accumulate (repr := m)
 
 example {α : Type u} {m : Type u → Type v} {n : Type u → Type w}
-    [lm : Monad m] [rn : Monad n] [∀ β, CCPO (m β)] [∀ β, CCPO (n β)]
-    [MonoBind m] [MonoBind n] (R : ComputationRelation m n) (hm : Monad.Rel R lm rn)
-    (hadm : ∀ {β}, AdmissibleRel (R (α := β)))
+    [Monad m] [Monad n] [∀ β, CCPO (m β)] [∀ β, CCPO (n β)]
+    [MonoBind m] [MonoBind n] (R : ComputationRelation m n) (hm : Monad.Rel R)
+    (hadm : ∀ ⦃β⦄, AdmissibleRel (R (α := β)))
     (k : Nat) (step : Nat → m (Option α)) (step' : Nat → n (Option α))
     (hstep : ∀ k, R (step k) (step' k)) (acc : List α) :
     R (accumulate k step acc) (accumulate k step' acc) :=
@@ -230,9 +229,9 @@ def immediate {m : Type → Type v} [Monad m] [∀ α, CCPO (m α)] [MonoBind m]
 
 derive_parametric immediate
 
-example {m : Type → Type v} {n : Type → Type w} [lm : Monad m] [rn : Monad n]
+example {m : Type → Type v} {n : Type → Type w} [Monad m] [Monad n]
     [∀ α, CCPO (m α)] [∀ α, CCPO (n α)] [MonoBind m] [MonoBind n]
-    (R : ComputationRelation m n) (hm : Monad.Rel R lm rn) (s : Nat) :
+    (R : ComputationRelation m n) (hm : Monad.Rel R) (s : Nat) :
     R (immediate (m := m) s) (immediate (m := n) s) :=
   immediate.parametric R hm s
 
@@ -243,10 +242,10 @@ partial_fixpoint
 
 derive_parametric spin
 
-example {m n : Type → Type} [lm : Monad m] [rn : Monad n]
+example {m n : Type → Type} [Monad m] [Monad n]
     [∀ α, CCPO (m α)] [∀ α, CCPO (n α)] [MonoBind m] [MonoBind n]
-    (R : ComputationRelation m n) (hm : Monad.Rel R lm rn)
-    (hadm : ∀ {α}, AdmissibleRel (R (α := α))) : R (spin (m := m)) (spin (m := n)) :=
+    (R : ComputationRelation m n) (hm : Monad.Rel R)
+    (hadm : ∀ ⦃α⦄, AdmissibleRel (R (α := α))) : R (spin (m := m)) (spin (m := n)) :=
   spin.parametric R hm hadm
 
 example : True := by

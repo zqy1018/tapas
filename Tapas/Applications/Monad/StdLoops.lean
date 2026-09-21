@@ -41,7 +41,7 @@ translation. The current range syntax reaches `List.forIn'` on its own. -/
 @[parametric] theorem rangeForIn'Rel {β : Type u} {m : Type u → Type v} [instMonad : Monad m]
     (r : Std.Legacy.Range) (init : β) (f : (i : Nat) → i ∈ r → β → m (ForInStep β))
     {m' : Type u → Type w} (R : ComputationRelation m m') [inst' : Monad m']
-    (hm : Monad.Rel R instMonad inst')
+    (hm : Monad.Rel R)
     (f' : (i : Nat) → i ∈ r → β → m' (ForInStep β))
     (hf : ∀ i h b, R (f i h b) (f' i h b)) :
     R (Std.Legacy.Range.forIn' r init f) (Std.Legacy.Range.forIn' r init f') := by

@@ -37,7 +37,7 @@ class Sized (A : Type u) where
 derive_interface_rel Sized (repr := A)
 
 example {A : Type u} {A' : Type v} (R : A → A' → Prop)
-    (left : Sized A) (right : Sized A') (h : Sized.Rel R left right) :
+    (left : Sized A) (right : Sized A') (h : Sized.Rel (left := left) (right := right) R) :
     Sized.size (self := left) = Sized.size (self := right) := h.size
 
 /-! ## Reaching the same binders from a command -/
@@ -64,17 +64,17 @@ derive_interface_rel Named (repr := A, B)
 derive_interface_rel Marked (repr := A)
 
 example {A : Type u} {A' : Type v} (R : A → A' → Prop) (left : Named A) (right : Named A')
-    (h : Named.Rel R left right)
+    (h : Named.Rel (left := left) (right := right) R)
     (p : {B : Type u} → [Carrier B] → B) (q : {B : Type v} → [Carrier B] → B)
-    (hpq : ∀ {B : Type u} {B' : Type v} (S : B → B' → Prop) [lb : Carrier B] [rb : Carrier B'],
-      Carrier.Rel S lb rb → S (p (B := B)) (q (B := B'))) :
+    (hpq : ∀ {B : Type u} {B' : Type v} (S : B → B' → Prop) [Carrier B] [Carrier B'],
+      Carrier.Rel S → S (p (B := B)) (q (B := B'))) :
     R (left.run p) (right.run q) := h.run p q hpq
 
 example {A : Type u} {A' : Type v} (R : A → A' → Prop) (left : Marked A) (right : Marked A')
-    (h : Marked.Rel R left right)
+    (h : Marked.Rel (left := left) (right := right) R)
     (p : {B : Type u} → [Carrier B] → B) (q : {B : Type v} → [Carrier B] → B)
-    (hpq : ∀ {B : Type u} {B' : Type v} (S : B → B' → Prop) [lb : Carrier B] [rb : Carrier B'],
-      Carrier.Rel S lb rb → S (p (B := B)) (q (B := B'))) :
+    (hpq : ∀ {B : Type u} {B' : Type v} (S : B → B' → Prop) [Carrier B] [Carrier B'],
+      Carrier.Rel S → S (p (B := B)) (q (B := B'))) :
     R (left.run p) (right.run q) := h.run p q hpq
 
 class Pair (A : Type u) (B : Type u) where
@@ -102,18 +102,18 @@ derive_type_rel Shared (repr := A)
 
 example (p : Shared.{u, v}) (q : Shared.{w, v}) :
     Shared.Rel p q ↔
-      ∀ {A : Type u} {A' : Type w} (R : A → A' → Prop) [la : Carrier A] [ra : Carrier A'],
-        Carrier.Rel R la ra → ∀ (f : {B : Type v} → [Carrier B] → B), R (p f) (q f) := Iff.rfl
+      ∀ {A : Type u} {A' : Type w} (R : A → A' → Prop) [Carrier A] [Carrier A'],
+        Carrier.Rel R → ∀ (f : {B : Type v} → [Carrier B] → B), R (p f) (q f) := Iff.rfl
 
 derive_type_rel Related (repr := A, B)
 
 example (p : Related.{u, v}) (q : Related.{w, x}) :
     Related.Rel p q ↔
-      ∀ {A : Type u} {A' : Type w} (R : A → A' → Prop) [la : Carrier A] [ra : Carrier A'],
-        Carrier.Rel R la ra →
+      ∀ {A : Type u} {A' : Type w} (R : A → A' → Prop) [Carrier A] [Carrier A'],
+        Carrier.Rel R →
           ∀ (f : {B : Type v} → [Carrier B] → B) (g : {B : Type x} → [Carrier B] → B),
-            (∀ {B : Type v} {B' : Type x} (S : B → B' → Prop) [lb : Carrier B] [rb : Carrier B'],
-              Carrier.Rel S lb rb → S (f (B := B)) (g (B := B'))) →
+            (∀ {B : Type v} {B' : Type x} (S : B → B' → Prop) [Carrier B] [Carrier B'],
+              Carrier.Rel S → S (f (B := B)) (g (B := B'))) →
             R (p f) (q g) := Iff.rfl
 
 /-! ## Selecting an outermost binder by position -/
@@ -129,8 +129,8 @@ example (p : ByName.{u}) (q : ByName.{v}) :
     ByName.Rel p q ↔
       ∀ (f g : {A : Type} → A → A),
         (∀ {A A' : Type} (R : A → A' → Prop) (x : A) (y : A'), R x y → R (f x) (g y)) →
-        ∀ {A : Type u} {A' : Type v} (R : A → A' → Prop) [la : Carrier A] [ra : Carrier A'],
-          Carrier.Rel R la ra → R (p f) (q g) := Iff.rfl
+        ∀ {A : Type u} {A' : Type v} (R : A → A' → Prop) [Carrier A] [Carrier A'],
+          Carrier.Rel R → R (p f) (q g) := Iff.rfl
 
 -- The binders the type binds are the program, `A`, and the `Carrier` instance.
 derive_type_rel ByPosition (repr := 1)
@@ -138,7 +138,7 @@ derive_type_rel ByPosition (repr := 1)
 example (p : ByPosition.{u}) (q : ByPosition.{v}) :
     ByPosition.Rel p q ↔
       ∀ (f : {A : Type} → A → A) {A : Type u} {A' : Type v} (R : A → A' → Prop)
-        [la : Carrier A] [ra : Carrier A'], Carrier.Rel R la ra → R (p f) (q f) := Iff.rfl
+        [Carrier A] [Carrier A'], Carrier.Rel R → R (p f) (q f) := Iff.rfl
 
 -- A position reads an interface's own parameters, and is spent on choosing one: the
 -- generated class is declared over the parameters as the interface has them.
@@ -148,7 +148,7 @@ class Positional (A : Type u) where
 derive_interface_rel Positional (repr := 0)
 
 example {A : Type u} {A' : Type v} (R : A → A' → Prop)
-    (left : Positional A) (right : Positional A') (h : Positional.Rel R left right) (n : Nat) :
+    (left : Positional A) (right : Positional A') (h : Positional.Rel (left := left) (right := right) R) (n : Nat) :
     R (left.lit n) (right.lit n) := h.lit n
 
 -- `derive_parametric` takes the same spec. A program's representation is one of its
@@ -159,7 +159,7 @@ def outOfRange {A : Type u} [Carrier A] : A := Carrier.lit 1
 derive_parametric positional (repr := 0)
 
 example {A : Type u} {A' : Type v} (R : A → A' → Prop) [la : Carrier A] [ra : Carrier A']
-    (h : Carrier.Rel R la ra) : R (positional (A := A)) (positional (A := A')) :=
+    (h : Carrier.Rel R) : R (positional (A := A)) (positional (A := A')) :=
   positional.parametric R h
 
 -- Omitting the spec selects the first implicit parameter,
@@ -182,7 +182,7 @@ def firstContainer {A : Type u} [Carrier A] : Option A := some (Carrier.lit 1)
 derive_parametric firstContainer
 
 example {A : Type u} {A' : Type v} (R : A → A' → Prop) [la : Carrier A] [ra : Carrier A']
-    (h : Carrier.Rel R la ra) :
+    (h : Carrier.Rel R) :
     Option.Rel R (firstContainer (A := A)) (firstContainer (A := A')) :=
   firstContainer.parametric R h
 
@@ -195,7 +195,7 @@ derive_parametric laterRepresentation as laterRepresentationExplicit (repr := 2)
 example : @laterRepresentation.parametric = @laterRepresentationExplicit := rfl
 
 example {A : Type u} {A' : Type v} (R : A → A' → Prop) [la : Carrier A] [ra : Carrier A']
-    (h : Carrier.Rel R la ra) (n : Nat) :
+    (h : Carrier.Rel R) (n : Nat) :
     R (laterRepresentation (A := A) n) (laterRepresentation (A := A') n) :=
   laterRepresentation.parametric n R h
 
@@ -214,7 +214,7 @@ end
 derive_parametric leftFirst
 
 example {A : Type u} {A' : Type v} (R : A → A' → Prop) [la : Carrier A] [ra : Carrier A']
-    (h : Carrier.Rel R la ra) (n : Nat) :
+    (h : Carrier.Rel R) (n : Nat) :
     R (rightFirst (A := A) n) (rightFirst (A := A') n) :=
   rightFirst.parametric R h n
 

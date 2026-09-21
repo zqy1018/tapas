@@ -8,8 +8,8 @@ def pureProgram {α : Type u} (a : α) := infer_effects% pure a
 derive_parametric pureProgram (repr := m)
 
 example {α : Type u} {m : Type u → Type v} {n : Type u → Type w}
-    [lm : Monad m] [rn : Monad n] (R : ComputationRelation m n)
-    (hm : Monad.Rel R lm rn) (a : α) :
+    [Monad m] [Monad n] (R : ComputationRelation m n)
+    (hm : Monad.Rel R) (a : α) :
     R (pureProgram (m := m) a) (pureProgram (m := n) a) :=
   pureProgram.parametric a R hm
 
@@ -76,11 +76,12 @@ def dependentChoice := infer_effects% do
 derive_parametric dependentChoice
 
 example {m : Type → Type v} {n : Type → Type w}
-    [lm : Monad m] [rn : Monad n] [ls : MonadStateOf Nat m] [rs : MonadStateOf Nat n]
+    [Monad m] [Monad n] [MonadStateOf Nat m] [MonadStateOf Nat n]
     [lc : ∀ k : Nat, Choose (fun x : Fin 10 => x.val ≤ k) m]
     [rc : ∀ k : Nat, Choose (fun x : Fin 10 => x.val ≤ k) n]
-    (R : ComputationRelation m n) (hm : Monad.Rel R lm rn)
-    (hs : MonadStateOf.Rel R ls rs) (hc : ∀ k, Choose.Rel R (lc k) (rc k)) :
+    (R : ComputationRelation m n) (hm : Monad.Rel R)
+    (hs : MonadStateOf.Rel (σ := Nat) R)
+    (hc : ∀ k, Choose.Rel (left := lc k) (right := rc k) R) :
     R (dependentChoice (m := m)) (dependentChoice (m := n)) :=
   dependentChoice.parametric R hm hs hc
 
@@ -96,10 +97,10 @@ def tiedError {m : Type → Type v} [Monad m]
   throwThe (ULift.{v} Unit) ⟨()⟩
 derive_parametric tiedError
 
-example {m n : Type → Type v} [lm : Monad m] [rn : Monad n]
-    [le : MonadExceptOf (ULift.{v} Unit) m] [re : MonadExceptOf (ULift.{v} Unit) n]
-    (R : ComputationRelation m n) (hm : Monad.Rel R lm rn)
-    (he : MonadExceptOf.Rel R le re) :
+example {m n : Type → Type v} [Monad m] [Monad n]
+    [MonadExceptOf (ULift.{v} Unit) m] [MonadExceptOf (ULift.{v} Unit) n]
+    (R : ComputationRelation m n) (hm : Monad.Rel R)
+    (he : MonadExceptOf.Rel (ε := ULift.{v} Unit) R) :
     R (tiedError (m := m)) (tiedError (m := n)) := tiedError.parametric R hm he
 
 def scopedReader := infer_effects% do
@@ -155,8 +156,8 @@ derive_parametric usesUnknown
 derive_parametric List.forIn'.loop as listLoopRel (repr := m)
 derive_parametric List.forIn' as listRel (repr := m)
 
-example {m : Type → Type} {m' : Type → Type} [inst : Monad m] [inst' : Monad m']
-    (R : ComputationRelation m m') (hm : Monad.Rel R inst inst') (xs : List Nat) (init : Nat)
+example {m : Type → Type} {m' : Type → Type} [Monad m] [Monad m']
+    (R : ComputationRelation m m') (hm : Monad.Rel R) (xs : List Nat) (init : Nat)
     (f : (a : Nat) → a ∈ xs → Nat → m (ForInStep Nat))
     (f' : (a : Nat) → a ∈ xs → Nat → m' (ForInStep Nat))
     (hf : ∀ a h b, R (f a h b) (f' a h b)) :
@@ -243,7 +244,7 @@ missing premise `Option.Rel R (some x) (some x')` from the relation on `x`. -/
 derive_parametric wrapsSome
 
 example {m n : Type → Type} (R : ComputationRelation m n)
-    [l : Fallback m] [r : Fallback n] (h : Fallback.Rel R l r)
+    [Fallback m] [Fallback n] (h : Fallback.Rel R)
     (x : m Nat) (y : n Nat) (hxy : R x y) :
     R (wrapsSome x) (wrapsSome y) := wrapsSome.parametric R h x y hxy
 

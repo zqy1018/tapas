@@ -26,8 +26,8 @@ derive_parametric grid (repr := repr)
 
 -- The second index depends on the first, but both interpretations share them.
 example {repr : (n : Nat) → Fin n → Type u} {repr' : (n : Nat) → Fin n → Type v}
-    (R : ∀ {n} {i : Fin n}, repr n i → repr' n i → Prop)
-    [l : Grid repr] [r : Grid repr'] (h : Grid.Rel R l r) (n : Nat) (i : Fin n) :
+    (R : ∀ ⦃n⦄ ⦃i : Fin n⦄, repr n i → repr' n i → Prop)
+    [Grid repr] [Grid repr'] (h : Grid.Rel R) (n : Nat) (i : Fin n) :
     R (grid n i (repr := repr)) (grid n i (repr := repr')) := grid.parametric n i R h
 
 -- A higher-kinded shared index uses the same telescope rule. It is not
@@ -42,8 +42,8 @@ def higher := infer_final% (repr : (Type → Type) → Nat → Type u) =>
 derive_parametric higher (repr := repr)
 
 example {repr : (Type → Type) → Nat → Type u} {repr' : (Type → Type) → Nat → Type v}
-    (R : ∀ {F n}, repr F n → repr' F n → Prop)
-    [l : Higher repr] [r : Higher repr'] (h : Higher.Rel R l r) :
+    (R : ∀ ⦃F n⦄, repr F n → repr' F n → Prop)
+    [Higher repr] [Higher repr'] (h : Higher.Rel R) :
     R (higher (repr := repr)) (higher (repr := repr')) := higher.parametric R h
 
 abbrev Final := {repr : (n : Nat) → Fin n → Type u} → [Grid repr] →

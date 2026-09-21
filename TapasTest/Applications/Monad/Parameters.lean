@@ -20,8 +20,8 @@ def rep {m : Type → Type u} [Monad m] (x : m Nat) : Nat → m Nat
 
 derive_parametric rep
 
-example {m : Type → Type u} {n : Type → Type v} [l : Monad m] [r : Monad n]
-    (R : ComputationRelation m n) (h : Monad.Rel R l r)
+example {m : Type → Type u} {n : Type → Type v} [Monad m] [Monad n]
+    (R : ComputationRelation m n) (h : Monad.Rel R)
     (x : m Nat) (y : n Nat) (hxy : R x y) (k : Nat) :
     R (rep x k) (rep y k) := rep.parametric R h x y hxy k
 
@@ -34,8 +34,8 @@ termination_by k
 
 derive_parametric repWF
 
-example {m : Type → Type u} {n : Type → Type v} [l : Monad m] [r : Monad n]
-    (R : ComputationRelation m n) (h : Monad.Rel R l r) (k : Nat)
+example {m : Type → Type u} {n : Type → Type v} [Monad m] [Monad n]
+    (R : ComputationRelation m n) (h : Monad.Rel R) (k : Nat)
     (x : m (Fin (k + 1))) (y : n (Fin (k + 1))) (hxy : R x y) :
     R (repWF k x) (repWF k y) := repWF.parametric k R h x y hxy
 
@@ -47,8 +47,8 @@ def repUntil (unused bound : Nat) {m : Type → Type u} [Monad m] (x : m Nat) : 
 
 derive_parametric repUntil
 
-example {m : Type → Type u} {n : Type → Type v} [l : Monad m] [r : Monad n]
-    (R : ComputationRelation m n) (h : Monad.Rel R l r)
+example {m : Type → Type u} {n : Type → Type v} [Monad m] [Monad n]
+    (R : ComputationRelation m n) (h : Monad.Rel R)
     (unused bound k : Nat) (x : m Nat) (y : n Nat) (hxy : R x y) :
     R (repUntil unused bound x k) (repUntil unused bound y k) :=
   repUntil.parametric unused bound R h x y hxy k
@@ -67,8 +67,8 @@ end
 
 derive_parametric repRight
 
-example {m : Type → Type u} {n : Type → Type v} [l : Monad m] [r : Monad n]
-    (R : ComputationRelation m n) (h : Monad.Rel R l r)
+example {m : Type → Type u} {n : Type → Type v} [Monad m] [Monad n]
+    (R : ComputationRelation m n) (h : Monad.Rel R)
     (unused bound k : Nat) (x : m Nat) (y : n Nat) (hxy : R x y) :
     R (repRight bound unused k x) (repRight bound unused k y) :=
   repRight.parametric bound unused R h k x y hxy

@@ -34,9 +34,9 @@ example {m : Type → Type} {m' : Type → Type} [Monad m] [Monad m'] (R : Compu
 
 derive_parametric m5
 
-example {m m' : Type → Type} [inst : Monad m] [state : MonadStateOf Nat m]
-    [inst' : Monad m'] [state' : MonadStateOf Nat m'] (R : ComputationRelation m m')
-    (hm : Monad.Rel R inst inst') (hs : MonadStateOf.Rel R state state') : R m5 m5 :=
+example {m m' : Type → Type} [Monad m] [MonadStateOf Nat m]
+    [Monad m'] [MonadStateOf Nat m'] (R : ComputationRelation m m')
+    (hm : Monad.Rel R) (hs : MonadStateOf.Rel (σ := Nat) R) : R m5 m5 :=
   m5.parametric R hm hs
 
 end TapasTest.Applications.Monad.ControlFlow.LetDiscriminant

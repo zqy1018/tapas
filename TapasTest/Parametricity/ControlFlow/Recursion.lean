@@ -86,8 +86,7 @@ instance : Arithmetic Nat where
   literal n := n
   add := Nat.add
 
-abbrev sumCompatible : Arithmetic.Rel (fun xs n => xs.sum = n)
-    (inferInstance : Arithmetic (List Nat)) (inferInstance : Arithmetic Nat) where
+abbrev sumCompatible : Arithmetic.Rel (fun (xs : List Nat) (n : Nat) => xs.sum = n) where
   literal _ := rfl
   add xs x hx ys y hy := by
     change (xs ++ ys).sum = x + y
@@ -135,7 +134,7 @@ def fromList (xs : List Nat) : repr xs.length :=
 derive_parametric fromList (repr := repr)
 
 example {repr : Nat → Type u} {repr' : Nat → Type v} (R : IndexedRelation repr repr')
-    [left : Sequence repr] [right : Sequence repr'] (h : Sequence.Rel R left right)
+    [Sequence repr] [Sequence repr'] (h : Sequence.Rel R)
     (xs : List Nat) : R (fromList (repr := repr) xs) (fromList (repr := repr') xs) :=
   fromList.parametric R h xs
 

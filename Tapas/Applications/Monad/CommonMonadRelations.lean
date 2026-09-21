@@ -40,7 +40,7 @@ theorem ofPureBind [LawfulMonad m] [LawfulMonad n]
     (bind_rel : ∀ {α β : Type u} {x : m α} {y : n α}
       {f : α → m β} {g : α → n β},
       R x y → (∀ a, R (f a) (g a)) → R (x >>= f) (y >>= g)) :
-    Monad.Rel R left right where
+    Monad.Rel R where
   map := by
     intro α β f x y h
     simp only [map_eq_pure_bind]

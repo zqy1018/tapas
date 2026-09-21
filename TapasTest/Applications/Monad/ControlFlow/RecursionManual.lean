@@ -23,8 +23,8 @@ def countdown : Nat → m Nat
   | k + 1 => do set k; let r ← countdown k; pure (r + 1)
 
 @[parametric] theorem countdown_translation {m : Type → Type v} {n : Type → Type w}
-    [lm : Monad m] [rn : Monad n] [ls : MonadStateOf Nat m] [rs : MonadStateOf Nat n]
-    (R : ComputationRelation m n) (hm : Monad.Rel R lm rn) (hs : MonadStateOf.Rel R ls rs)
+    [Monad m] [Monad n] [MonadStateOf Nat m] [MonadStateOf Nat n]
+    (R : ComputationRelation m n) (hm : Monad.Rel R) (hs : MonadStateOf.Rel (σ := Nat) R)
     (k : Nat) : R (countdown (m := m) k) (countdown (m := n) k) := by
   induction k with
   | zero => exact hm.pure 0
@@ -41,7 +41,7 @@ derive_parametric caller
 /-! ## `for` loops over lists -/
 
 @[parametric] theorem forIn'_translation {m : Type u → Type v} {n : Type u → Type w}
-    [lm : Monad m] [rn : Monad n] (R : ComputationRelation m n) (hm : Monad.Rel R lm rn)
+    [Monad m] [Monad n] (R : ComputationRelation m n) (hm : Monad.Rel R)
     {α : Type} {β : Type u} (xs : List α) (init : β)
     (f : (a : α) → a ∈ xs → β → m (ForInStep β)) (g : (a : α) → a ∈ xs → β → n (ForInStep β))
     (hfg : ∀ a h b, R (f a h b) (g a h b)) :

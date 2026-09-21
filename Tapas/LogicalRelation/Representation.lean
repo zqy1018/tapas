@@ -17,10 +17,11 @@ and places a binary relation at the final sort:
 ```lean
 repr  : (i : I) → J i → Type v
 repr' : (i : I) → J i → Type w
-R     : ∀ {i} {j : J i}, repr i j → repr' i j → Prop
+R     : ∀ ⦃i⦄ ⦃j : J i⦄, repr i j → repr' i j → Prop
 ```
 
-Here `i` and `j` are the *shared indices* for the two interpretations.
+Here `i` and `j` are the *shared indices* for the two interpretations. They are bound
+strict implicit; the comment on `withSharedIndices` says what goes wrong otherwise.
 A later index type may mention earlier indices, and only the index domains have to
 agree: the two interpretations may end in different universes, so `repr i j` can be
 a runtime value where `repr' i j` is a syntax tree. Zero indices use the same
@@ -81,6 +82,26 @@ structure RepresentationSelection where
 /-- Run `k` on the two interpretations applied to a shared list of indices, once
 the whole telescope has been opened. Both must end in a sort, and their index
 domains must agree, since one list of indices stands for both. -/
+
+/- NOTE: The indices are bound **strict implicit**, as are those of the aliases in
+`Common/BaseRelationAliases.lean`, which have to match. What forces this is that a
+generated relation is routinely passed on as a whole rather than applied: `C.Rel R`
+recovers both representations from the type of `R` alone, and a relator such as
+`ListRel` takes a relation as an argument.
+
+An ordinary implicit index is instantiated as soon as the bare `R` is elaborated,
+giving `R : repr ?i → repr' ?i → Prop` with `?i` created outside any binder. Fitting
+that back under an expected `∀ {i}, ?repr i → ?repr' i → Prop` asks the unifier to
+solve `?repr i =?= repr ?i`, which is not a pattern, so it takes the approximation
+`?repr := fun i => repr ?i` and leaves `?i` unconstrained. Both representations then
+read as constant functions of a metavariable that nothing will ever solve, and any
+instance search over them is stuck. A strict implicit index is not instantiated until
+the relation meets a value, so the bare `R` keeps its shape, the expected type matches
+it structurally, and the representations come out as themselves.
+
+Applying a relation is unaffected, since `R x y` takes the index from `x`. What needs
+an annotation is handing one to something that expects a relation at a single index,
+as in `ListRel (R (α := α))`. -/
 partial def withSharedIndices (source target : Expr)
     (k : Array Expr → Expr → Expr → MetaM Expr) : MetaM Expr := go #[] source target
 where
@@ -89,7 +110,7 @@ where
     | .forallE name dom _ _, .forallE _ dom' _ _ =>
       unless ← isDefEq dom dom' do
         throwError "logical relation: shared index domains differ:\n{dom}\nand\n{dom'}"
-      withLocalDecl name .implicit dom fun x => go (indices.push x) (mkApp left x) (mkApp right x)
+      withLocalDecl name .strictImplicit dom fun x => go (indices.push x) (mkApp left x) (mkApp right x)
     | .sort _, .sort _ => k indices left right
     | _, _ => throwError "logical relation: shared-index interpretation requires a parameter whose telescope ends in a sort"
 

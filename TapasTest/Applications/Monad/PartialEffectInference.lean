@@ -60,8 +60,8 @@ def tick := infer_effects_partial% do
 derive_parametric tick
 
 example {m : Type → Type v} {n : Type → Type w}
-    [lm : Monad m] [rn : Monad n] [ls : MonadStateOf Nat m] [rs : MonadStateOf Nat n]
-    (R : ComputationRelation m n) (hm : Monad.Rel R lm rn) (hs : MonadStateOf.Rel R ls rs) :
+    [Monad m] [Monad n] [MonadStateOf Nat m] [MonadStateOf Nat n]
+    (R : ComputationRelation m n) (hm : Monad.Rel R) (hs : MonadStateOf.Rel (σ := Nat) R) :
     R (tick (m := m)) (tick (m := n)) := tick.parametric R hm hs
 
 -- Even an error inside the new entry point must not affect subsequent elaboration.
@@ -88,10 +88,10 @@ local instance targetReader : MonadReaderOf Nat Target where
 def R : ComputationRelation Source Target := fun {_} x y =>
   ∀ cfg cfg', cfg = cfg'.1 → x cfg = y cfg'
 
-theorem relation_admissible {α : Type} : AdmissibleRel (R (α := α)) :=
+theorem relation_admissible ⦃α : Type⦄ : AdmissibleRel (R (α := α)) :=
   AdmissibleRel.pi (fun _ _ _ => AdmissibleRel.eq)
 
-theorem monadRel : Monad.Rel R (inferInstance : Monad Source) (inferInstance : Monad Target) :=
+theorem monadRel : Monad.Rel R :=
   Monad.Rel.ofPureBind R (fun _ _ _ _ => rfl) (by
     intro α β x y f g hxy hfg cfg cfg' hcfg
     funext s
@@ -102,12 +102,10 @@ theorem monadRel : Monad.Rel R (inferInstance : Monad Source) (inferInstance : M
     | none => rfl
     | some result => exact congrFun (hfg result.1 cfg cfg' hcfg) result.2)
 
-theorem readerRel : MonadReaderOf.Rel R
-    (inferInstance : MonadReaderOf Nat Source) targetReader where
+theorem readerRel : MonadReaderOf.Rel (right := targetReader) R where
   read := by rintro cfg cfg' rfl; rfl
 
-theorem stateRel : MonadStateOf.Rel R
-    (inferInstance : MonadStateOf Nat Source) (inferInstance : MonadStateOf Nat Target) where
+theorem stateRel : MonadStateOf.Rel (σ := Nat) R where
   get := by intro cfg cfg' _; rfl
   set := by intro n cfg cfg' _; rfl
   modifyGet := by intro α f cfg cfg' _; rfl

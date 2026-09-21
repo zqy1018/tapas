@@ -8,6 +8,10 @@
 - Avoid re-inventing the wheel, *especially when writing meta-programs*. That is to say, when you are trying to implement certain functionality (either a meta-program, a normal program or a proof) which seems very general, you should first try to find it in the Lean source code or in the dependencies of the current project. 
 - **DO NOT** stage or commit when you finish writing something, unless explicitly and clearly instructed. 
 
+## Lean Tricks
+
+- To leave an instance-implicit argument for unification to fill, write `(_)` rather than `_`. 
+
 ## Writing Test Cases
 
 - Unless for the test cases that depend on each other, all test cases should only have a single import for `Tapas`.

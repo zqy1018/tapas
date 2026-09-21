@@ -12,11 +12,11 @@ class Arith (A : Type u) where
 derive_interface_rel Arith (repr := A)
 
 example {A : Type u} {B : Type v} (R : A → B → Prop)
-    (left : Arith A) (right : Arith B) [Arith.Rel R left right] (n : Nat) :
+    [left : Arith A] [right : Arith B] [Arith.Rel R] (n : Nat) :
     R (left.lit n) (right.lit n) := Arith.Rel.lit n
 
 example {A : Type u} {B : Type v} (R : A → B → Prop)
-    (left : Arith A) (right : Arith B) [Arith.Rel R left right]
+    [left : Arith A] [right : Arith B] [Arith.Rel R]
     {x y : A} {x' y' : B} (hx : R x x') (hy : R y y') :
     R (left.add x y) (right.add x' y') := Arith.Rel.add x x' hx y y' hy
 
@@ -66,7 +66,7 @@ def viaCasesOn (b : Bool) : A :=
 derive_parametric viaCasesOn (repr := A)
 
 example {A : Type u} {B : Type v} (R : A → B → Prop)
-    [left : Arith A] [right : Arith B] (h : Arith.Rel R left right) (b : Bool) :
+    [Arith A] [Arith B] (h : Arith.Rel R) (b : Bool) :
     R (viaCasesOn (A := A) b) (viaCasesOn (A := B) b) := viaCasesOn.parametric R h b
 
 -- Proof generation uses the relation of a handwritten interface, which has to have
@@ -82,7 +82,7 @@ def atomProgram : A := Atom.atom
 derive_parametric atomProgram (repr := A)
 
 example {A : Type u} {B : Type v} (R : A → B → Prop)
-    [left : Atom A] [right : Atom B] (h : Atom.Rel R left right) :
+    [Atom A] [Atom B] (h : Atom.Rel R) :
     R (atomProgram (A := A)) (atomProgram (A := B)) := atomProgram.parametric R h
 
 inductive Syntax where
@@ -98,8 +98,7 @@ def evaluate : Syntax → Nat
   | .lit n => n
   | .add x y => evaluate x + evaluate y
 
-abbrev evaluationRelation : Arith.Rel (fun x y => evaluate x = y)
-    (inferInstance : Arith Syntax) (inferInstance : Arith Nat) where
+abbrev evaluationRelation : Arith.Rel (fun (x : Syntax) (y : Nat) => evaluate x = y) where
   lit _ := rfl
   add _ _ hx _ _ hy := by cases hx; cases hy; rfl
 
@@ -131,8 +130,8 @@ derive_type_rel WithInput (repr := A)
 
 example {X : Type u} (p : WithInput.{u,v} X) (q : WithInput.{u,w} X) :
     WithInput.Rel p q ↔
-      ∀ {A : Type v} {B : Type w} (R : A → B → Prop) [left : Arith A] [right : Arith B],
-        Arith.Rel R left right → ∀ (f : X → A) (g : X → B),
+      ∀ {A : Type v} {B : Type w} (R : A → B → Prop) [Arith A] [Arith B],
+        Arith.Rel R → ∀ (f : X → A) (g : X → B),
       (∀ x, R (f x) (g x)) → ∀ x, R (p f x) (q g x) := Iff.rfl
 
 -- A later type constructor is shared; explicit selection does not revert to
@@ -143,8 +142,8 @@ derive_type_rel WithFunctor (repr := A)
 
 example (p : WithFunctor.{u}) (q : WithFunctor.{v}) :
     WithFunctor.Rel p q ↔
-      ∀ {A : Type u} {B : Type v} (R : A → B → Prop) [left : Arith A] [right : Arith B],
-        Arith.Rel R left right → ∀ (F : Type → Type) (x : F Nat), R (p F x) (q F x) := Iff.rfl
+      ∀ {A : Type u} {B : Type v} (R : A → B → Prop) [Arith A] [Arith B],
+        Arith.Rel R → ∀ (F : Type → Type) (x : F Nat), R (p F x) (q F x) := Iff.rfl
 
 -- Selection by name applies at every depth, so a same-named binder inside an
 -- argument's type is a representation too: the argument is related rather than
@@ -156,8 +155,8 @@ derive_type_rel Shadowed (repr := A)
 example (p : Shadowed.{u}) (q : Shadowed.{v}) :
     Shadowed.Rel p q ↔ ∀ (f g : {A : Type} → A → A),
       (∀ {A B : Type} (R : A → B → Prop) (x : A) (y : B), R x y → R (f x) (g y)) →
-      ∀ {A : Type u} {B : Type v} (R : A → B → Prop) [left : Arith A] [right : Arith B],
-        Arith.Rel R left right → R (p f) (q g) := Iff.rfl
+      ∀ {A : Type u} {B : Type v} (R : A → B → Prop) [Arith A] [Arith B],
+        Arith.Rel R → R (p f) (q g) := Iff.rfl
 
 -- Parameters of the type definition itself are shared, including universes
 -- quantified inside the type of a higher-order parameter.
@@ -173,7 +172,7 @@ class Batch (A : Type u) where
 derive_interface_rel Batch (repr := A)
 
 example {A : Type u} {B : Type v} (R : A → B → Prop)
-    (left : Batch A) (right : Batch B) [Batch.Rel R left right]
+    [left : Batch A] [right : Batch B] [Batch.Rel R]
     (xs : List A) (ys : List B) (h : ListRel R xs ys) :
     Option.Rel R (left.first? xs) (right.first? ys) := Batch.Rel.first? xs ys h
 
@@ -184,7 +183,7 @@ derive_parametric selectProgram (repr := A)
 
 -- Relator-lifted parameters are duplicated, so they do not pin the output universe.
 example {A : Type u} {B : Type v} (R : A → B → Prop)
-    [left : Batch A] [right : Batch B] (h : Batch.Rel R left right)
+    [Batch A] [Batch B] (h : Batch.Rel R)
     (xs : List A) (ys : List B) (hxy : ListRel R xs ys) :
     R (selectProgram xs) (selectProgram ys) := selectProgram.parametric R h xs ys hxy
 
@@ -219,11 +218,11 @@ def useAtoms : Option A := Source.first? (atoms (A := A))
 derive_parametric useAtoms (repr := A)
 
 example {A : Type u} {B : Type v} (R : A → B → Prop)
-    [l : Source A] [r : Source B] (h : Source.Rel R l r) :
+    [Source A] [Source B] (h : Source.Rel R) :
     ListRel R (atoms (A := A)) (atoms (A := B)) := atoms.parametric R h
 
 example {A : Type u} {B : Type v} (R : A → B → Prop)
-    [l : Source A] [r : Source B] (h : Source.Rel R l r) :
+    [Source A] [Source B] (h : Source.Rel R) :
     Option.Rel R (useAtoms (A := A)) (useAtoms (A := B)) := useAtoms.parametric R h
 
 -- An independent result is interpreted by equality; no representation-headed
