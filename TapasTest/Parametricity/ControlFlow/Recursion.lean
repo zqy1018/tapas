@@ -36,13 +36,8 @@ where
     | [] => acc
     | x :: rest => loop rest (Arithmetic.add acc (Arithmetic.literal x))
 
-/--
-error: parametricity: no applicable translation for TapasTest.Parametricity.ControlFlow.Recursion.sumList.loop; use `derive_parametric TapasTest.Parametricity.ControlFlow.Recursion.sumList.loop` or `attribute [parametric] theoremName`
--/
-#guard_msgs in
-derive_parametric sumList (repr := A)
-
-derive_parametric sumList.loop (repr := A)
+-- The `where` helper is a declaration of its own, and is derived along with the definition it
+-- was split out of.
 derive_parametric sumList (repr := A)
 
 -- Finishing a row decreases `rows` but resets `cols`, requiring a lexicographic measure.

@@ -313,9 +313,27 @@ private def deriveMember (source : Name) (block? : Option (Array Name × FixedPa
       throwError "parametricity: partial_fixpoint requires CCPO instances for every result type in both interpretations"
     else finish none
 
-/-- Derive `source`, using least-fixpoint induction or a recursive block's functional induction. -/
-private def deriveProgram (source : Name) (spec? : Option ReprSpec) (name? : Option Name) :
-    MetaM Unit := do
+/-- The auxiliary declarations `source` was split into: constants of its body that are named under
+it and have no translation yet. Matchers and internal names are excluded -/
+private def auxiliaryDependencies (source : Name) (members : Array Name) : MetaM (Array Name) := do
+  let .defnInfo info ← getConstInfo source | return #[]
+  let env ← getEnv
+  let mut result := #[]
+  for name in info.value.getUsedConstants do
+    if name == source || !source.isPrefixOf name then continue
+    if name.isInternalDetail || members.contains name || result.contains name then continue
+    unless (getParametricRules env name).isEmpty do continue
+    if (← getMatcherInfo? name).isSome then continue
+    let .defnInfo aux ← getConstInfo name | continue
+    if aux.safety == .safe then
+      result := result.push name
+  return result
+
+/-- Derive `source`, using least-fixpoint induction or a recursive block's functional induction.
+`derived` are the declarations already being derived further up, which bounds the recursion
+through auxiliary declarations. -/
+private partial def deriveProgram (source : Name) (spec? : Option ReprSpec) (name? : Option Name)
+    (derived : NameSet := {}) : MetaM Unit := do
   let .defnInfo _ ← getConstInfo source
     | throwError "parametricity: expected a definition with a body: {source}"
   let fixpoint? := PartialFixpoint.eqnInfoExt.find? (← getEnv) source
@@ -336,15 +354,32 @@ private def deriveProgram (source : Name) (spec? : Option ReprSpec) (name? : Opt
       else member ++ `parametric
     if (← getEnv).contains theoremName then
       throwError "parametricity: declaration already exists: {theoremName}"
+  -- The auxiliary declarations come first, so that the walk over each body finds their
+  -- translations registered.
+  let mut seen := derived.insert source |>.insertMany members
+  for member in members do
+    for aux in ← auxiliaryDependencies member members do
+      unless seen.contains aux do
+        seen := seen.insert aux
+        /- A helper the block does not actually need a translation for -- one used only where
+        both interpretations agree -- must not fail the block. Its failure is reported through
+        the block's own, at the position that needs it. -/
+        if (← observing? (deriveProgram aux spec? none seen)).isNone then
+          trace[Tapas.Parametricity] "could not derive the auxiliary declaration {aux}"
   for member in members do
     deriveMember member block? fixpoint? spec? name?
 
 /-- Generate and register the parametricity theorem from the elaborated body of `p`. Structural
-and well-founded recursion derive the whole block; partial fixpoints require
+and well-founded recursion derive the whole block, and a `where` or `let rec` helper is derived
+along with the definition it was split out of; partial fixpoints require
 admissibility. `(repr := ...)` says which parameter to relate, by name or by position;
 omitting it selects the first implicit parameter (`{...}` or `⦃...⦄`), skipping explicit
 and instance parameters. A definition without an implicit parameter needs an explicit spec.
 Selection is resolved separately for each member of a recursive block.
+
+A helper is derived under the same `(repr := ...)`, so selecting by position rather than by name
+can miss it; deriving the helper by hand first is always allowed, and a helper that already has a
+translation is left alone.
 
 The optional `as name` gives the theorem `name` in the current namespace instead of
 `p.parametric`. A mutually recursive block with multiple definitions cannot be given

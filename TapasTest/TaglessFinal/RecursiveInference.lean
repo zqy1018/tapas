@@ -47,6 +47,8 @@ where
 
 example : ({A : Type u} → [Arithmetic A] → List Nat → A → A) := @sumList.loop
 
+-- Deriving the helper first is allowed too: it is registered, so the definition does not derive
+-- it again.
 derive_parametric sumList.loop
 derive_parametric sumList
 
@@ -126,11 +128,11 @@ abbrev sumCompatible : Arithmetic.Rel (fun xs n => xs.sum = n)
 example (env : Nat → List Nat) (expr : Formula) :
     (evaluate (A := List Nat) env expr).sum =
       evaluate (A := Nat) (fun i => (env i).sum) expr :=
-  evaluate.parametric env expr (fun xs n => xs.sum = n) sumCompatible
-    (fun i => (env i).sum) (fun _ => rfl)
+  evaluate.parametric (fun xs n => xs.sum = n) sumCompatible env (fun i => (env i).sum)
+    (fun _ => rfl) expr
 
 example (xs : List Nat) : (sumList (A := List Nat) xs).sum = sumList (A := Nat) xs :=
-  sumList.parametric xs (fun xs n => List.sum xs = n) sumCompatible
+  sumList.parametric (fun xs n => List.sum xs = n) sumCompatible xs
 
 #guard evaluate (A := Nat) (fun i => i + 10)
   (.add (.variable 0) (.add (.literal 2) (.variable 1))) == 23
