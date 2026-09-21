@@ -118,25 +118,23 @@ private partial def collapseDelayedAssignments (e : Expr) : MetaM Unit := do
   if progress then collapseDelayedAssignments e
 
 -- TODO This is overlapping with `getRequiredDecidableInstances` in `Veil/Util/Meta.lean`
-def abstractTCArgsCore (stx : Term)
+/-- Collect the metavariables of `es` that `targetTC` accepts, and replace each by a fresh
+metavariable prepared for abstraction.
+
+The results are ordered so that a metavariable occurring in the type of another precedes it.
+`es` are the expressions the arguments were left in; several are passed together when one
+signature is to be shared, as by the definitions of a `mutual` block. -/
+def abstractTCMVars (es : Array Expr)
   (targetTC : Expr → Bool)
   (nameGen : String := "arg")
-  (cfg : AbstractTCArgsConfig := {})
-  (expectedType? : Option Expr := none) : TermElabM (Array AbstractTCArg × Expr) := do
-  /- We want to throw an error if anything fails or is missing during
-  elaboration. -/
-  Term.withoutErrToSorry $ do
-  -- We elaborate the `stx` ignoring typeclass inference failures, but ensuring we
-  -- do synthesize all the metavariables that we can (not postponing them). This
-  -- is to ensure the resulting expression is 'complete' (i.e. doesn't have holes,
-  -- except for the `targetTC` instances, which will be passed explicitly).
-  withTheReader Term.Context (fun ctx => { ctx with ignoreTCFailures := true }) do
-  let e ← Term.elabTerm stx expectedType?
-  Term.synthesizeSyntheticMVars (postpone := .no) (ignoreStuckTC := true)
-  collapseDelayedAssignments e
-  let mvars ← Array.map Expr.mvar <$> Meta.getMVars e
+  (cfg : AbstractTCArgsConfig := {}) : TermElabM (Array AbstractTCArg) := do
+  es.forM fun e => collapseDelayedAssignments e
+  let mut collected : Array Expr := #[]
+  for e in es do
+    for mvarId in ← Meta.getMVars e do
+      unless collected.contains (.mvar mvarId) do collected := collected.push (.mvar mvarId)
   -- there might be dependencies between the metavariables
-  let some mvars ← topsortMVars? mvars | throwError "cyclic dependencies between metavariables detected"
+  let some mvars ← topsortMVars? collected | throwError "cyclic dependencies between metavariables detected"
   let mut nameCounter := 0
   let mut nextName := getNextName nameCounter
   let mut res : Array AbstractTCArg := #[]
@@ -145,12 +143,36 @@ def abstractTCArgsCore (stx : Term)
       res := res.push tmp
       nameCounter := nameCounter + 1
       nextName := getNextName nameCounter
-  return (res, e)
+  return res
 where
   isBodyTarget (body : Expr) : TermElabM Bool := do
     return targetTC (← instantiateMVars body)
   getNextName (n : Nat) : Name :=
     .mkSimple <| nameGen ++ toString n
+
+/-- Run `k` with elaboration tolerating unresolved typeclass goals.
+
+Ordinary elaboration errors are still reported. `k` is expected to synthesize every metavariable
+it can, so that the only holes left for `abstractTCMVars` to collect are the tolerated ones. -/
+def withTolerantElaboration (k : TermElabM α) : TermElabM α :=
+  /- We want to throw an error if anything fails or is missing during
+  elaboration. -/
+  Term.withoutErrToSorry <|
+  -- We elaborate ignoring typeclass inference failures, but ensuring we
+  -- do synthesize all the metavariables that we can (not postponing them). This
+  -- is to ensure the resulting expression is 'complete' (i.e. doesn't have holes,
+  -- except for the `targetTC` instances, which will be passed explicitly).
+  withTheReader Term.Context (fun ctx => { ctx with ignoreTCFailures := true }) k
+
+def abstractTCArgsCore (stx : Term)
+  (targetTC : Expr → Bool)
+  (nameGen : String := "arg")
+  (cfg : AbstractTCArgsConfig := {})
+  (expectedType? : Option Expr := none) : TermElabM (Array AbstractTCArg × Expr) :=
+  withTolerantElaboration do
+    let e ← Term.elabTerm stx expectedType?
+    Term.synthesizeSyntheticMVars (postpone := .no) (ignoreStuckTC := true)
+    return (← abstractTCMVars #[e] targetTC nameGen cfg, e)
 
 /-- `abstractTCargs% [TC1, TC2, ...] t` collects all missing arguments in `t`
 that are instances of any typeclass in `TC1`, `TC2`, ... , and abstracts them

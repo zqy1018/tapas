@@ -84,11 +84,16 @@ adds normalization, deduplication, minimization, and the checks below. Both
 layers work with general typeclass constraints; monadic effect inference is one
 application of the mechanism, not a requirement of either layer.
 
+`Tapas.TaglessFinal.RecursiveInference` reuses steps 1–5 for a whole declaration
+rather than one term, which is what lets a recursive definition have its
+parameters inferred. Its `infer_final` command is the declaration-level
+counterpart of the `infer_final%` below.
+
 ## Algorithm
 
 Steps 1–2 are delegated to `abstractTCArgsCore`; steps 3–6 are added here, and
-each is named by the function implementing it. Steps 3–5 run in the order listed
-inside `inferInterfaceBody`.
+each is named by the function implementing it. Steps 3–5 are `refineConstraints`,
+in the order listed.
 
 1. Elaborate the body, allowing unresolved typeclass goals while still reporting
    ordinary elaboration errors. Existing instances are used normally, and
@@ -111,8 +116,8 @@ inside `inferInterfaceBody`.
    fixes. Then `minimizeConstraints`: try to remove each requirement by
    synthesizing it from the others as local instances, replacing the removed
    metavariable with an expression built from the retained ones.
-5. `inferInterfaceBody`: check the body, its type, and the retained constraint
-   types for unresolved expression metavariables other than the selected ones.
+5. Check the elaborated terms, their types, and the retained constraint types for
+   unresolved expression metavariables other than the selected ones.
    `throwUnresolved` reports whatever is left at the operation it came from,
    rather than at the frontend's token.
 6. `inferInterfaceBody` abstracts the retained constraints as instance-implicit
@@ -152,7 +157,7 @@ argument in step 5. The value always comes from another requirement of the same
 body, never from an ambient instance, but which requirement supplies it depends
 on the order the constraints are traversed. -/
 /-- Merge the metavariables of class constraints that unify. -/
-private def deduplicateConstraints
+def deduplicateConstraints
     (args : Array AbstractTCArg) : TermElabM (Array AbstractTCArg) := do
   let mut unique := #[]
   for arg in args do
@@ -243,7 +248,7 @@ recursion.
 The first prerequisite inherits the binder name of the constraint it replaces,
 and later ones append `_1`, `_2`, and so on, so one requirement in the body
 stays recognizable in the generated signature. -/
-private partial def normalizeConstraint (isConstraint : Expr → Bool)
+partial def normalizeConstraint (isConstraint : Expr → Bool)
     (arg : AbstractTCArg) : TermElabM (Array AbstractTCArg) :=
   withIncRecDepth do
     let some (value, premises) ← unfoldConstraint isConstraint arg.type | return #[arg]
@@ -260,7 +265,7 @@ private partial def normalizeConstraint (isConstraint : Expr → Bool)
     return result
 
 /-- Remove a class constraint when the retained ones can synthesize it. -/
-private def minimizeConstraints
+def minimizeConstraints
     (args : Array AbstractTCArg) : TermElabM (Array AbstractTCArg) := do
   let mut kept := args
   let mut i := 0
@@ -293,7 +298,7 @@ constraint that was about to become a parameter, and whether it is itself an
 instance that was never selected for abstraction. -/
 /-- Report the metavariables that survived inference, at the positions they came
 from. -/
-private def throwUnresolved (selected : MessageData) (args : Array AbstractTCArg)
+def throwUnresolved (selected : MessageData) (args : Array AbstractTCArg)
     (bad : Array MVarId) : TermElabM α := do
   let env ← getEnv
   let mut extra := m!""
@@ -312,6 +317,34 @@ private def throwUnresolved (selected : MessageData) (args : Array AbstractTCArg
     throwError m!"interface inference: unresolved argument of type\
       {indentExpr (← inferType (.mvar bad[0]!))}{extra}"
   throwAbortTerm
+
+-- NOTE: At the inference stage, an interface is a type class
+/-- Whether `type` is a class constraint that `select` accepts. -/
+def isInterfaceConstraint (env : Environment) (select : Expr → Bool) (type : Expr) : Bool :=
+  type.getAppFn'.constName?.any (Lean.isClass env) && select type
+
+/-- Turn collected class constraints into the parameters to abstract: steps 3-5 of the module
+docstring's algorithm, applied to the constraints of `exprs` taken together.
+
+`exprs` are the terms the constraints were collected from, together with their types, checked for
+expression metavariables other than the retained constraints and the ones `ignored` accepts.
+Passing several at once is what gives the definitions of a `mutual` block one shared set of
+parameters; `ignored` is how a caller excludes a placeholder it resolves itself, such as the one
+standing for a `let rec` function until it is lifted. -/
+def refineConstraints (isInterface : Expr → Bool) (selected : MessageData)
+    (args : Array AbstractTCArg) (exprs : Array Expr)
+    (ignored : MVarId → TermElabM Bool := fun _ => return false) :
+    TermElabM (Array AbstractTCArg) := do
+  let args ← args.flatMapM (normalizeConstraint isInterface)
+  let args ← deduplicateConstraints args
+  let args ← minimizeConstraints args
+  let interfaceMVars := args.map (·.mvar)
+  let unresolved ← exprs.flatMapM fun e => do getMVars (← instantiateMVars e)
+  let unresolvedArgs ← args.flatMapM fun arg => do getMVars (← instantiateMVars (← inferType arg.mvar))
+  let bad ← (unresolved ++ unresolvedArgs).toList.filterM
+    fun id => return !interfaceMVars.contains (.mvar id) && !(← ignored id)
+  unless bad.isEmpty do throwUnresolved selected args bad.eraseDups.toArray
+  return args
 
 /-- Elaborate `body` and abstract the missing instance arguments that `select`
 accepts, as instance-implicit parameters of the returned term.
@@ -333,27 +366,25 @@ def inferInterfaceBody (body : Term) (select : Expr → Bool)
     (selected : MessageData := m!"a selected parameter")
     (expectedType? : Option Expr := none) (nameGen : String := "interface") : TermElabM Expr := do
   let env ← getEnv
-  let isInterface (type : Expr) :=
-    type.getAppFn'.constName?.any (Lean.isClass env) && select type
+  let isInterface := isInterfaceConstraint env select
   let (args, e) ← abstractTCArgsCore body isInterface nameGen
     { simplifyType := true } expectedType?
-  let args ← args.flatMapM (normalizeConstraint isInterface)
-  let args ← deduplicateConstraints args
-  let args ← minimizeConstraints args
-  let interfaceMVars := args.map (·.mvar)
-  let unresolved ← getMVars (← instantiateMVars e)
-  let unresolvedType ← getMVars (← instantiateMVars (← inferType e))
-  let unresolvedArgs ← args.flatMapM fun arg => do getMVars (← instantiateMVars (← inferType arg.mvar))
-  let bad := (unresolved ++ unresolvedType ++ unresolvedArgs).toList.filter
-    fun id => !interfaceMVars.contains (.mvar id)
-  unless bad.isEmpty do throwUnresolved selected args bad.eraseDups.toArray
-  Meta.mkLambdaFVars interfaceMVars e (binderInfoForMVars := .instImplicit)
+  let args ← refineConstraints isInterface selected args #[e, ← inferType e]
+  Meta.mkLambdaFVars (args.map (·.mvar)) e (binderInfoForMVars := .instImplicit)
+
+def withInferFinalConfig [Inhabited α] (names : Array (TSyntax `ident)) (kinds : Array (TSyntax `term))
+    (k : (params : Array Expr) → (select : Expr → Bool) → (selected : MessageData) → TermElabM α) : TermElabM α := do
+  withLocalDecls ((names.zip kinds).map fun (name, kind) =>
+      (name.getId, .implicit, fun _ => Term.elabType kind)) fun params => do
+    k params (fun type => params.any (·.occurs type))
+      (MessageData.orList (names.toList.map fun name => m!"`{name.getId}`"))
 
 /-- `infer_final% (A : kindA) (B : kindB) => body` infers the interface `body`
 requires of the named parameters.
 
 Each parameter is introduced as a rigid local hypothesis; see the module docstring for what that
-means and why they are named rather than inferred.
+means and why they are named rather than inferred. A recursive definition is not one term, so it
+uses the command form `infer_final (A : kindA) def f ...` instead.
 
 The signature binds the parameters implicitly, in the order written, then the
 inferred arguments as instance-implicit parameters:
@@ -373,11 +404,8 @@ syntax (name := inferFinalStx) "infer_final% " ("(" ident " : " term ")")+ " => 
 def elabInferFinal : TermElab := fun stx expectedType? => do
   let `(infer_final% $[($names:ident : $kinds:term)]* => $body:term) := stx
     | throwUnsupportedSyntax
-  let e ← withLocalDecls
-      ((names.zip kinds).map fun (name, kind) =>
-        (name.getId, .implicit, fun _ => Term.elabType kind)) fun params => do
-    let e ← inferInterfaceBody body (fun type => params.any (·.occurs type))
-      (MessageData.orList (names.toList.map fun name => m!"`{name.getId}`"))
+  let e ← withInferFinalConfig names kinds fun params select selected => do
+    let e ← inferInterfaceBody body select selected
     mkLambdaFVars params e
   Term.ensureHasType expectedType? e
 
