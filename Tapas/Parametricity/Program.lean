@@ -237,7 +237,7 @@ private def deriveMember (source : Name) (block? : Option (Array Name × FixedPa
     throwError "parametricity: unsafe or partial definitions are unsupported: {source}"
   let theoremName := name?.getD (source ++ `parametric)
   -- Resolve the frontend's selection and the order-parameter extension.
-  let (selection, hasOrderParameters) ← forallTelescope info.type fun params _ => do
+  let (selection, hasOrderParameters) ← forallTelescope info.type fun params result => do
     let spec ← match spec? with
       | some spec => pure spec
       | none => do
@@ -258,13 +258,24 @@ private def deriveMember (source : Name) (block? : Option (Array Name × FixedPa
         | throwError "parametricity: {source} has no parameter at index {i}; there are {params.size}"
       names := names.push (← param.fvarId!.getUserName)
     let selection := RepresentationSelection.markedOrNamed names
-    let candidates ← params.filterM fun param => do
-      pure (← selection.select (← param.fvarId!.getUserName) (← inferType param)).isSome
-    let #[_] := candidates
-      | throwError "parametricity: select exactly one representation parameter of {source} with `(repr := name)`"
-    let hasOrderParameters ← params.anyM fun param => do
-      pure (isOrderParameter (← inferType param))
-    pure (selection, hasOrderParameters)
+    let filterCandidates (params : Array Expr) : MetaM (Array Expr) := do
+      params.filterM fun param => do pure (← selection.select (← param.fvarId!.getUserName) (← inferType param)).isSome
+    let finish (params : Array Expr) (candidates : Option (Array Expr))  := do
+      let candidates ← match candidates with
+        | some res => pure res
+        | none => filterCandidates params
+      let #[_] := candidates
+        | throwError "parametricity: select exactly one representation parameter of {source} with `(repr := name)`"
+      let hasOrderParameters ← params.anyM fun param => do
+        pure (isOrderParameter (← inferType param))
+      pure (selection, hasOrderParameters)
+    let candidates ← filterCandidates params
+    -- Preserve selection on the written telescope, including a name also bound inside
+    -- the result. Only an explicit name with no candidate may look through a result alias.
+    if !spec.names.isEmpty && candidates.isEmpty then
+      forallTelescopeReducing result fun extra _ => finish extra none
+    else
+      finish params (some candidates)
   let relateBinder (dom : Expr) : MetaM Bool := pure !(isOrderParameter dom)
   let levelParamsArray := info.levelParams.toArray
   let (typeRelation, targetLevels) ← mkTypeRelation info.type levelParamsArray selection
@@ -376,6 +387,8 @@ admissibility. `(repr := ...)` says which parameter to relate, by name or by pos
 omitting it selects the first implicit parameter (`{...}` or `⦃...⦄`), skipping explicit
 and instance parameters. A definition without an implicit parameter needs an explicit spec.
 Selection is resolved separately for each member of a recursive block.
+An explicit name absent from the written parameter telescope may select a parameter in
+the expanded return type. Default and positional selection use only the written telescope.
 
 A helper is derived under the same `(repr := ...)`, so selecting by position rather than by name
 can miss it; deriving the helper by hand first is always allowed, and a helper that already has a

@@ -16,6 +16,43 @@ derive_parametric once (repr := A)
 
 example : Transformation.Rel (@once.{u}) (@once.{v}) := once.parametric
 
+-- A named representation may be bound by the return type rather than the written signature.
+def aliasedOnce : Transformation.{u} := @once
+
+/-- error: parametricity: TapasTest.Parametricity.TypeRelation.aliasedOnce has no implicit parameter; use `(repr := name)` to select a representation -/
+#guard_msgs in
+derive_parametric aliasedOnce
+
+/-- error: parametricity: TapasTest.Parametricity.TypeRelation.aliasedOnce has no parameter at index 0; there are 0 -/
+#guard_msgs in
+derive_parametric aliasedOnce (repr := 0)
+
+derive_parametric aliasedOnce (repr := A)
+
+example : Transformation.Rel (@aliasedOnce.{u}) (@aliasedOnce.{v}) := aliasedOnce.parametric
+
+-- Finding the outer A must not count the same-named binder hidden in the result alias.
+abbrev Identity := {A : Type} → A → A
+
+def keep {A : Type} (_x : A) : Identity := fun {_} y => y
+
+derive_parametric keep (repr := A)
+derive_parametric keep as keepDefault
+derive_parametric keep as keepPositional (repr := 0)
+
+example : @keep.parametric = @keepDefault := rfl
+example : @keep.parametric = @keepPositional := rfl
+
+-- Ordinary inputs stay shared while the monad inside the result alias is related.
+abbrev FinalAction (α : Type u) := {m : Type u → Type v} → [Monad m] → m α
+derive_type_rel FinalAction (repr := m)
+
+def finalPure {α : Type u} (a : α) : FinalAction.{u, v} α := fun {_} _ => pure a
+derive_parametric finalPure (repr := m)
+
+example {α : Type u} (a : α) :
+    FinalAction.Rel (finalPure.{u, v} a) (finalPure.{u, w} a) := finalPure.parametric a
+
 -- Functional induction changes how the theorem is proved, not its statement.
 infer_final (A : Type u)
 def iterate (f : A → A) (x : A) : Nat → A
