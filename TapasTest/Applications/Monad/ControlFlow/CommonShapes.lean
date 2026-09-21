@@ -9,7 +9,7 @@ up as a failure rather than as a slow build.
 
 open Tapas.Parametricity Tapas.LogicalRelation
 
-namespace TapasTest.Parametricity.ControlFlow.CommonShapes
+namespace TapasTest.Applications.Monad.ControlFlow.CommonShapes
 
 def tick := infer_effects% do
   let n ← get
@@ -58,4 +58,4 @@ derive_parametric c4
 -- The bound is loose on purpose: it catches a proof term that stops sharing, not ordinary drift.
 #guard_num_objs c1.parametric, c2.parametric, c3.parametric, c4.parametric < 8000
 
-end TapasTest.Parametricity.ControlFlow.CommonShapes
+end TapasTest.Applications.Monad.ControlFlow.CommonShapes

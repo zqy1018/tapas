@@ -6,7 +6,7 @@ import TapasTest.TestingUtils
 
 open Tapas.Parametricity Tapas.LogicalRelation
 
-namespace TapasTest.Parametricity.ControlFlow.If
+namespace TapasTest.Applications.Monad.ControlFlow.If
 
 def tick := infer_effects% do
   let n ← get
@@ -104,4 +104,4 @@ derive_parametric i12
 
 #guard_parametric i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12
 
-end TapasTest.Parametricity.ControlFlow.If
+end TapasTest.Applications.Monad.ControlFlow.If

@@ -7,7 +7,7 @@ Do-notation join points. An `if` or `match` followed by more statements elaborat
 
 open Tapas.Parametricity Tapas.LogicalRelation
 
-namespace TapasTest.Parametricity.ControlFlow.JoinPoint
+namespace TapasTest.Applications.Monad.ControlFlow.JoinPoint
 
 def tick := infer_effects% do
   let n ← get
@@ -75,7 +75,7 @@ derive_parametric i4
 -- The elaborated body, showing the join point `__do_jp : PUnit → m Nat` that both
 -- branches jump to. This is the shape every case in this file is about.
 /--
-info: def TapasTest.Parametricity.ControlFlow.JoinPoint.i4.{u_1} : {m : Type → Type u_1} →
+info: def TapasTest.Applications.Monad.ControlFlow.JoinPoint.i4.{u_1} : {m : Type → Type u_1} →
   [instMonad : Monad m] → [effect0 : MonadStateOf Nat m] → m Nat :=
 fun {m} [Monad m] [MonadStateOf Nat m] => do
   let n ← get
@@ -225,8 +225,13 @@ derive_parametric earlyReturnJoins
 #guard_parametric a1, a2, a3, a4, a5, a6, i4, i4a, i4b, i4c, i4d, i4e
 #guard_parametric sequentialJoins, nestedJoins, mutableJoins, earlyReturnJoins
 
+-- Both jumps reach the same continuation, so its proof is built once. Counting is what says
+-- so: a `#guard_uses` would pass just as well if the continuation had been proved twice.
+#guard_num_uses a1.parametric [tick.parametric] = 1
+#guard_binds a1.parametric ⊇ [__do_jp, __do_jp', __do_jp_rel]
+
 -- The current proofs use about 3,000–5,100 objects; leave room for ordinary changes.
 #guard_num_objs sequentialJoins.parametric, nestedJoins.parametric,
   mutableJoins.parametric, earlyReturnJoins.parametric < 8000
 
-end TapasTest.Parametricity.ControlFlow.JoinPoint
+end TapasTest.Applications.Monad.ControlFlow.JoinPoint

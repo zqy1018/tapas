@@ -7,7 +7,7 @@ and reused by generated theorems.
 
 open Tapas.Parametricity Tapas.LogicalRelation
 
-namespace TapasTest.Parametricity.ControlFlow.RecursionManual
+namespace TapasTest.Applications.Monad.ControlFlow.RecursionManual
 
 def tick := infer_effects% do
   let n ← get
@@ -76,12 +76,7 @@ derive_parametric forListIf
 #guard_parametric caller, forList, forListIf
 
 -- Reusing a hand-written translation adds nothing to what that translation itself assumes.
-/-- info: 'TapasTest.Parametricity.ControlFlow.RecursionManual.caller.parametric' does not depend on any axioms -/
-#guard_msgs in
-#print axioms caller.parametric
+#guard_axioms caller.parametric ⊆ []
+#guard_axioms forList.parametric ⊆ [propext]
 
-/-- info: 'TapasTest.Parametricity.ControlFlow.RecursionManual.forList.parametric' depends on axioms: [propext] -/
-#guard_msgs in
-#print axioms forList.parametric
-
-end TapasTest.Parametricity.ControlFlow.RecursionManual
+end TapasTest.Applications.Monad.ControlFlow.RecursionManual

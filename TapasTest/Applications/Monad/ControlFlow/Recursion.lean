@@ -64,6 +64,15 @@ example : ({m : Type → Type} → [Monad m] → [MonadStateOf Nat m] → Nat �
 
 derive_parametric halve
 
+-- The recursive argument is a monadic result, so its induction hypothesis carries a premise.
+infer_effects
+def chase (n : Nat) : m Nat := do
+  let x ← get
+  if _h : x < n then chase x else pure n
+termination_by n
+
+derive_parametric chase
+
 /- Two capabilities, contributed by different functions of the block, become one shared set of
 parameters. A recursive occurrence can then always supply what the function it calls needs.
 One invocation derives both functions. -/
@@ -89,6 +98,11 @@ example :
   (evenSteps (m := ReaderT String (StateT Nat Id)) 4) "abc") 9) == (1, 1)
 
 derive_parametric evenSteps
+
+-- The first invocation already added the other member's theorem.
+/-- error: parametricity: declaration already exists: TapasTest.Applications.Monad.ControlFlow.Recursion.oddSteps.parametric -/
+#guard_msgs in
+derive_parametric oddSteps
 
 /- A `where` helper is lifted with the capabilities it uses in its own signature, and is derived
 along with the definition it was split out of. -/
@@ -147,7 +161,7 @@ example : ({m : Type → Type} → [Monad m] → [MonadStateOf Nat m] → Nat �
 loops as ordinary recursive definitions. The legacy range rule is written by hand because
 `Std.Legacy.Range.forIn'` recurses through a private helper that no `derive_parametric` invocation
 can name. The rules are registered under that module's own names, so `List.forIn'.parametric`
-stays free -- `TapasTest/Applications/Monad/ControlFlow/RecursionManual.lean` claims it.
+stays free -- `TapasTest/Parametricity/Program.lean` claims it, to show that `as` left it available.
 -/
 
 -- `for` over a list, which goes through `List.forIn'`.
@@ -165,6 +179,16 @@ def loopReturn (xs : List Nat) := infer_effects% do
     set (n + x)
   pure 0
 derive_parametric loopReturn
+
+-- `break` leaves the loop with the accumulator the body last assigned.
+def loopBreak (xs : List Nat) := infer_effects% do
+  let mut acc := 0
+  for x in xs do
+    if x == 0 then break
+    acc := acc + x
+    let _ ← tick
+  pure acc
+derive_parametric loopBreak
 
 -- `for` over an array.
 def arrayLoop (xs : Array Nat) := infer_effects% do
@@ -193,16 +217,11 @@ def forPRangeIncl (k : Nat) := infer_effects% do
   getThe Nat
 derive_parametric forPRangeIncl
 
-open Lean Meta Elab Command Tapas.Parametricity.StdLoops in
-run_cmd liftTermElabM do
-  let usedIn (source rule : Name) : MetaM Bool := do
-    let proof := (← getConstInfo (source ++ `parametric)).value! (allowOpaque := true)
-    return (proof.find? (·.isConstOf rule)).isSome
-  unless ← usedIn ``forRange ``rangeForIn'Rel do
-    throwError "the legacy range loop no longer uses the hand-written rule"
-  for source in [``forPRange, ``forPRangeIncl] do
-    unless ← usedIn source ``listForIn'Rel do
-      throwError "{source} no longer reduces to the list loop"
+open Tapas.Parametricity.StdLoops in
+#guard_uses forRange.parametric ⊇ [rangeForIn'Rel]
+
+open Tapas.Parametricity.StdLoops in
+#guard_uses forPRange.parametric, forPRangeIncl.parametric ⊇ [listForIn'Rel]
 
 -- A monadic traversal is shipped on the same terms as a loop.
 def mapMProg (xs : List Nat) := infer_effects% do
@@ -331,29 +350,44 @@ error: parametricity: no applicable translation for Nat.rec; use `derive_paramet
 #guard_msgs in
 derive_parametric viaRec
 
+/- A failure in one function of a `mutual` block rolls back the theorems of the whole block. -/
+def unregistered := infer_effects% pure (1 : Nat)
+
+infer_effects
+mutual
+def good : Nat → m Nat
+  | 0 => pure 0
+  | k + 1 => bad k
+def bad : Nat → m Nat
+  | 0 => unregistered
+  | k + 1 => good k
+end
+
+/--
+error: parametricity: no applicable translation for TapasTest.Applications.Monad.ControlFlow.Recursion.unregistered; use `derive_parametric TapasTest.Applications.Monad.ControlFlow.Recursion.unregistered` or `attribute [parametric] theoremName`
+-/
+#guard_msgs in
+derive_parametric good
+
 /-! ## What the derivations left behind -/
 
-#guard_parametric tick, countDown, evenSet, halve, evenSteps, oddSteps, total, total.go, pfix,
-  forList, loopReturn, arrayLoop, forRange, forPRange, forPRangeIncl, mapMProg, folded
+#guard_parametric tick, countDown, evenSet, halve, chase, evenSteps, oddSteps, total,
+  total.go, pfix, forList, loopReturn, loopBreak, arrayLoop, forRange, forPRange,
+  forPRangeIncl, mapMProg, folded
 
-open Lean Meta Elab Command in
-run_cmd liftTermElabM do
-  for n in [``spin, ``whileLoop, ``viaRec, ``arrayMapMProg] do
-    if (← getEnv).contains (n ++ `parametric) then
-      throwError "a rejected derivation left a theorem behind: {n}"
-  -- The admissibility premise is what distinguishes a `partial_fixpoint` translation.
-  unless ((← getConstInfo (``pfix ++ `parametric)).type.find?
-      (·.isConstOf ``AdmissibleRel)).isSome do
-    throwError "pfix.parametric has no admissibility premise"
-  for source in [``evenSet, ``loopReturn, ``arrayLoop, ``folded, ``total.go, ``total] do
-    let theoremName := source ++ `parametric
-    let info ← getConstInfo theoremName
-    let value := info.value! (allowOpaque := true)
-    if info.type.hasMVar || value.hasMVar || info.type.hasFVar || value.hasFVar then
-      throwError "unresolved variables in {theoremName}"
+#guard_no_parametric spin, whileLoop, viaRec, arrayMapMProg, good, bad
 
-#guard_axioms countDown.parametric, halve.parametric, total.parametric,
-  total.go.parametric ⊆ [propext, Quot.sound]
+-- A recursive theorem uses functional induction rather than recursion on itself.
+#guard_uses countDown.parametric ⊇ [countDown.induct]
+#guard_uses halve.parametric ⊇ [halve.induct]
+#guard_uses evenSteps.parametric ⊇ [evenSteps.induct]
+#guard_uses oddSteps.parametric ⊇ [oddSteps.induct]
+
+-- The admissibility premise is what distinguishes a `partial_fixpoint` translation.
+#guard_uses type pfix.parametric ⊇ [AdmissibleRel]
+
+#guard_axioms countDown.parametric, halve.parametric, chase.parametric, total.parametric,
+  total.go.parametric, loopBreak.parametric ⊆ [propext, Quot.sound]
 
 /- The mutual block and the fixpoint need the same axioms as the hand-written definitions they
 replace. -/

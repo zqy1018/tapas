@@ -11,7 +11,7 @@ variable and succeeds once the discriminant is unfolded. Unfolding it is exactly
 
 open Tapas.Parametricity Tapas.LogicalRelation
 
-namespace TapasTest.Parametricity.ControlFlow.LetDiscriminant
+namespace TapasTest.Applications.Monad.ControlFlow.LetDiscriminant
 
 def m5 := infer_effects% do
   let n ← get
@@ -39,4 +39,4 @@ example {m m' : Type → Type} [inst : Monad m] [state : MonadStateOf Nat m]
     (hm : Monad.Rel R inst inst') (hs : MonadStateOf.Rel R state state') : R m5 m5 :=
   m5.parametric R hm hs
 
-end TapasTest.Parametricity.ControlFlow.LetDiscriminant
+end TapasTest.Applications.Monad.ControlFlow.LetDiscriminant

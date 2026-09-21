@@ -6,7 +6,7 @@ import TapasTest.TestingUtils
 
 open Tapas.Parametricity Tapas.LogicalRelation
 
-namespace TapasTest.Parametricity.ControlFlow.Match
+namespace TapasTest.Applications.Monad.ControlFlow.Match
 
 def tick := infer_effects% do
   let n ← get
@@ -219,11 +219,7 @@ derive_parametric sharedDependentMatch
 #guard_num_objs overlappingMatches.parametric, nestedEquations.parametric,
   appliedMatcher.parametric, sharedDependentMatch.parametric < 8000
 
-open Lean Meta Elab Command in
-run_cmd liftTermElabM do
-  if (← getEnv).contains (``m13 ++ `parametric) then
-    throwError "the rejected dependent match left a theorem behind"
-  unless (getParametricRules (← getEnv) ``m13).isEmpty do
-    throwError "the rejected dependent match left a registered translation behind"
+-- The rejected dependent match left nothing behind.
+#guard_no_parametric m13
 
-end TapasTest.Parametricity.ControlFlow.Match
+end TapasTest.Applications.Monad.ControlFlow.Match
