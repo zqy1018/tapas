@@ -161,7 +161,7 @@ example : ({m : Type → Type} → [Monad m] → [MonadStateOf Nat m] → Nat �
 loops as ordinary recursive definitions. The legacy range rule is written by hand because
 `Std.Legacy.Range.forIn'` recurses through a private helper that no `derive_parametric` invocation
 can name. The rules are registered under that module's own names, so `List.forIn'.parametric`
-stays free -- `TapasTest/Parametricity/Program.lean` claims it, to show that `as` left it available.
+stays free -- `TapasTest/Applications/Monad/Program.lean` claims it, to show that `as` left it available.
 -/
 
 -- `for` over a list, which goes through `List.forIn'`.
