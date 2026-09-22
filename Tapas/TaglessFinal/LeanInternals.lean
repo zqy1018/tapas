@@ -9,7 +9,7 @@ means acting between the elaborated values and the `PreDefinition`s, and there i
 so the surrounding steps have to be reproduced rather than called.
 
 Everything here is a copy or a reduction of a *private* definition of the `def` command, checked
-against **Lean 4.32.0**; each one names its original. Nothing here is specific to interface
+against **Lean 4.34.0**; each one names its original. Nothing here is specific to interface
 inference, and nothing that Lean exports is copied -- `MutualClosure.main`, `addPreDefinitions`,
 `fixLevelParams`, `expandMatchAltsWhereDecls`, `withAuxDecl` and `mkDefView` are called directly
 by their users.
@@ -49,8 +49,9 @@ def declValTerminationHints (declVal : Syntax) : CommandElabM TerminationHints :
 
 /- From the body of the private `elabHeaders` in `Lean/Elab/MutualDef.lean`, reduced to its
 binder, auto-bound-implicit and universe handling. Dropped: the incrementality snapshots, the
-`instance`-specific `cleanupOfNat`, `registerFailedToInferDefTypeInfo`, and the `check` comparing
-a header against its predecessors in the block.
+deprecation context of the attributes, the `instance`-specific `cleanupOfNat`,
+`registerFailedToInferDefTypeInfo`, the report of the metavariables a written type leaves
+unassigned, and the `check` comparing a header against its predecessors in the block.
 
 `defaultDefType` is the one addition: it stands in for the `:` part of a definition that writes
 none, where upstream always elaborates a hole and leaves the body to determine it. A caller that
