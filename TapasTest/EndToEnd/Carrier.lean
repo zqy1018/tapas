@@ -1,4 +1,8 @@
-import TapasTest.TestingUtils
+module
+
+public import TapasTest.TestingUtils
+
+public section
 
 open TaglessFinal Tapas.LogicalRelation Tapas.Parametricity
 universe u v w
@@ -20,7 +24,7 @@ example {A : Type u} {B : Type v} (R : A → B → Prop)
     {x y : A} {x' y' : B} (hx : R x x') (hy : R y y') :
     R (left.add x y) (right.add x' y') := Arith.Rel.add x x' hx y y' hy
 
-def expression := infer_final% (A : Type u) =>
+@[expose] def expression := infer_final% (A : Type u) =>
   Arith.add (A := A) (Arith.lit 1) (Arith.lit 2)
 
 -- Repeated uses of the same interface yield just one instance binder.
@@ -29,7 +33,7 @@ example : {A : Type u} → [Arith A] → A := @expression
 derive_parametric expression (repr := A)
 
 -- A handwritten definition uses exactly the same proof path.
-def twice {A : Type u} [Arith A] : A :=
+@[expose] def twice {A : Type u} [Arith A] : A :=
   let x := expression
   Arith.add x x
 
@@ -94,7 +98,7 @@ instance : Arith Syntax := ⟨Syntax.lit, Syntax.add⟩
 instance : Arith Nat := ⟨id, Nat.add⟩
 instance : Arith String := ⟨toString, fun x y => s!"({x} + {y})"⟩
 
-def evaluate : Syntax → Nat
+@[expose] def evaluate : Syntax → Nat
   | .lit n => n
   | .add x y => evaluate x + evaluate y
 
@@ -196,7 +200,7 @@ class Source (A : Type u) where
 
 derive_interface_rel Source (repr := A)
 
-def atoms := infer_final% (A : Type u) => [Source.atom (A := A), Source.atom]
+@[expose] def atoms := infer_final% (A : Type u) => [Source.atom (A := A), Source.atom]
 def pair := infer_final% (A : Type u) => (Source.atom (A := A), Source.atom (A := A))
 def optional := infer_final% (A : Type u) => Source.first? (Source.batch (A := A))
 def handler := infer_final% (A : Type u) => (fun x : A => Source.first? [x])

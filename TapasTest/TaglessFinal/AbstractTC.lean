@@ -1,3 +1,5 @@
+module
+
 import Tapas
 
 namespace TapasTest.TaglessFinal.AbstractTC

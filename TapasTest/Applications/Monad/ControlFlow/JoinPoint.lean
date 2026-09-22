@@ -1,3 +1,5 @@
+module
+
 import TapasTest.TestingUtils
 
 /-!
@@ -75,7 +77,7 @@ derive_parametric i4
 -- The elaborated body, showing the join point `__do_jp : PUnit → m Nat` that both
 -- branches jump to. This is the shape every case in this file is about.
 /--
-info: def TapasTest.Applications.Monad.ControlFlow.JoinPoint.i4.{u_1} : {m : Type → Type u_1} →
+info: private def TapasTest.Applications.Monad.ControlFlow.JoinPoint.i4.{u_1} : {m : Type → Type u_1} →
   [instMonad : Monad m] → [effect0 : MonadStateOf Nat m] → m Nat :=
 fun {m} [Monad m] [MonadStateOf Nat m] => do
   let n ← get

@@ -1,7 +1,9 @@
-import Tapas.LogicalRelation.Registry
-import Tapas.LogicalRelation.Representation
-import Tapas.LogicalRelation.Translation
-import Tapas.LogicalRelation.Derive
-import Tapas.LogicalRelation.Common
+module
+
+public import Tapas.LogicalRelation.Registry
+public import Tapas.LogicalRelation.Representation
+public import Tapas.LogicalRelation.Translation
+public import Tapas.LogicalRelation.Derive
+public import Tapas.LogicalRelation.Common
 
 /-! See `Tapas/LogicalRelation/README.md`. -/

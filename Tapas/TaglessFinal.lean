@@ -1,2 +1,4 @@
-import Tapas.TaglessFinal.Inference
-import Tapas.TaglessFinal.RecursiveInference
+module
+
+public import Tapas.TaglessFinal.Inference
+public import Tapas.TaglessFinal.RecursiveInference

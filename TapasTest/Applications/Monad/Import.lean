@@ -1,3 +1,5 @@
+module
+
 import TapasTest.Applications.Monad.Program
 import TapasTest.Applications.Monad.EffectRelation
 

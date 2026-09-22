@@ -1,5 +1,8 @@
+module
+
 import TapasTest.TestingUtils
 import TapasTest.Applications.Monad.Ghost.Basic
+meta import TapasTest.Applications.Monad.Ghost.Basic -- shake: keep (required by #guard/#eval)
 
 open Tapas.Parametricity Tapas.LogicalRelation TapasTest.Applications.Monad.Ghost.Basic
 
@@ -242,7 +245,9 @@ theorem odd_step_erases :
 
 -- The `partial_fixpoint` program does need it, through the order structure its least fixpoint
 -- is taken in. A `⊆` bound cannot state that an axiom is present, so this one stays a print.
-/-- info: 'TapasTest.Applications.Monad.Ghost.Programs.drain_erase' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+/-- info: '_private.TapasTest.Applications.Monad.Ghost.Programs.0.TapasTest.Applications.Monad.Ghost.Programs.drain_erase' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound] -/
 #guard_msgs in
 #print axioms drain_erase
 

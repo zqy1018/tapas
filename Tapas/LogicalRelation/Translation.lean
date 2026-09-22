@@ -1,5 +1,9 @@
-import Tapas.LogicalRelation.Registry
-import Tapas.LogicalRelation.Representation
+module
+
+public import Tapas.LogicalRelation.Representation
+public meta import Tapas.LogicalRelation.Representation
+
+public meta section
 
 /-!
 Extending the base relation from a representation to any type.

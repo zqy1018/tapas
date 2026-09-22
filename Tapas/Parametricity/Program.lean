@@ -1,4 +1,10 @@
-import Tapas.Parametricity.Proof
+module
+
+public import Tapas.Parametricity.Proof
+meta import Tapas.Parametricity.Proof
+import Lean.Elab.PreDefinition.TerminationHint
+
+public meta section
 
 /-!
 Generating `p.parametric`, the theorem that a program gives related results in two
@@ -332,7 +338,7 @@ private def auxiliaryDependencies (source : Name) (members : Array Name) : MetaM
   let mut result := #[]
   for name in info.value.getUsedConstants do
     if name == source || !source.isPrefixOf name then continue
-    if name.isInternalDetail || members.contains name || result.contains name then continue
+    if (privateToUserName name).isInternalDetail || members.contains name || result.contains name then continue
     unless (getParametricRules env name).isEmpty do continue
     if (← getMatcherInfo? name).isSome then continue
     let .defnInfo aux ← getConstInfo name | continue
@@ -410,8 +416,13 @@ def elabDeriveParametric : CommandElab := fun stx => do
   let `(derive_parametric $source:ident $[as $name:ident]? $[$spec:reprSpec]?) := stx
     | throwUnsupportedSyntax
   let spec? ← spec.mapM elabReprSpec
-  let name? ← name.mapM fun name => do pure ((← getCurrNamespace) ++ name.getId)
+  let currNamespace ← getCurrNamespace
   liftTermElabM <| commitIfNoEx do
-    deriveProgram (← realizeGlobalConstNoOverloadWithInfo source) spec? name?
+    let source ← realizeGlobalConstNoOverloadWithInfo source
+    let env ← getEnv
+    let name? := name.map fun name =>
+      let name := currNamespace ++ name.getId
+      if isPrivateName source then mkPrivateName env name else name
+    deriveProgram source spec? name?
 
 end Tapas.Parametricity

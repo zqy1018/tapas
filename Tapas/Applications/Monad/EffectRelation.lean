@@ -1,4 +1,8 @@
-import Tapas.LogicalRelation
+module
+
+public import Tapas.LogicalRelation
+
+public meta section
 
 /-!
 `derive_effect_rel`, the monadic entry to interface relations.

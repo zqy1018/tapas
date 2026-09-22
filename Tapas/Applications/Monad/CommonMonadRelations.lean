@@ -1,4 +1,9 @@
+module
+
+public import Tapas.LogicalRelation.Common.BaseRelationAliases
 import Tapas.Applications.Monad.EffectRelation
+
+public section
 
 /-!
 Relations for the monad classes Lean provides, and a shortcut for building one.

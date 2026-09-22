@@ -1,6 +1,8 @@
-import TapasTest.TestingUtils
+module
+
 import TapasTest.Applications.Monad.Freer.WP
 import Std.Tactic.Do
+import Std.Tactic.BVDecide.Normalize
 
 /-!
 One program, two instantiations. Uninterpreted operations are reified on top of a base

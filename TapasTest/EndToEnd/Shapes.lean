@@ -1,3 +1,5 @@
+module
+
 import TapasTest.TestingUtils
 
 open TaglessFinal Tapas.LogicalRelation Tapas.Parametricity

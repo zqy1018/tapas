@@ -1,3 +1,5 @@
+module
+
 import TapasTest.Applications.Monad.StackSuggestion.Basic
 
 /-!

@@ -1,5 +1,10 @@
-import TapasTest.TestingUtils
+module
+
 import TapasTest.Applications.Monad.PartialFixpoint
+public import Tapas.Applications.Monad.Loop
+import all Tapas.Applications.Monad.Loop -- inspect the imported certificate's proof
+import all Init.Internal.Order.Basic -- proofs unfold FlatOrder.mk
+import Std.Tactic.BVDecide.Normalize
 
 /-!
 The scoped least-fixpoint loop instance, reached by `open scoped Tapas.Parametricity.PartialLoop`

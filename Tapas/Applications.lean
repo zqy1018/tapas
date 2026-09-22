@@ -1,1 +1,3 @@
-import Tapas.Applications.Monad
+module
+
+public import Tapas.Applications.Monad

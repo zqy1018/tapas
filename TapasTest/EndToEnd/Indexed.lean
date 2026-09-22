@@ -1,4 +1,8 @@
-import TapasTest.TestingUtils
+module
+
+public import TapasTest.TestingUtils
+
+public section
 
 open TaglessFinal Tapas.LogicalRelation Tapas.Parametricity
 universe u v w
@@ -39,19 +43,19 @@ example {repr : Ty → Type u} {repr' : Ty → Type v}
     (h : ∀ x y, R x y → R (f x) (g y)) :
     R (left.lam f) (right.lam g) := Language.Rel.lam f g h
 
-def double := infer_final% (repr : Ty → Type u) =>
+@[expose] def double := infer_final% (repr : Ty → Type u) =>
   Language.lam (repr := repr) (fun x => Language.add x x)
 
 example : {repr : Ty → Type u} → [Language repr] → repr (.arrow .nat .nat) := @double
 
 derive_parametric double (repr := repr)
 
-def six := infer_final% (repr : Ty → Type u) =>
+@[expose] def six := infer_final% (repr : Ty → Type u) =>
   Language.app (repr := repr) double (Language.lit 3)
 
 derive_parametric six (repr := repr)
 
-def Eval : Ty → Type
+@[expose] def Eval : Ty → Type
   | .nat => Nat
   | .arrow a b => Eval a → Eval b
 
@@ -64,7 +68,7 @@ instance : Language Eval where
 #guard Nat.beq (six (repr := Eval)) 6
 
 -- A second interpretation wraps every semantic value, including function values.
-def Wrapped (t : Ty) := ULift.{0} (Eval t)
+@[expose] def Wrapped (t : Ty) := ULift.{0} (Eval t)
 
 instance : Language Wrapped where
   lit n := ⟨n⟩
@@ -72,7 +76,7 @@ instance : Language Wrapped where
   lam f := ⟨fun x => (f ⟨x⟩).down⟩
   app f x := ⟨f.down x.down⟩
 
-def unwrapRelation : IndexedRelation Wrapped Eval := fun {_} x y => x.down = y
+@[expose] def unwrapRelation : IndexedRelation Wrapped Eval := fun {_} x y => x.down = y
 
 abbrev unwrapCompatible : Language.Rel unwrapRelation where
   lit _ := rfl

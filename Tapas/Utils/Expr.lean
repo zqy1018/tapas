@@ -1,4 +1,9 @@
-import Lean
+module
+
+public meta import Lean
+import Lean.Expr
+
+public meta section
 
 namespace Tapas.Utils
 

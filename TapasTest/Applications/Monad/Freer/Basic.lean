@@ -1,4 +1,8 @@
-import Tapas
+module
+
+public import Tapas
+
+public section
 
 /-!
 Freer syntax, its final encoding, and interpretation laws. Requests are first-order;
@@ -21,7 +25,7 @@ namespace Freer
 
 variable {E : Type u → Type v} {α β γ : Type u}
 
-def bind (t : Freer E α) (f : α → Freer E β) : Freer E β :=
+@[expose] def bind (t : Freer E α) (f : α → Freer E β) : Freer E β :=
   match t with
   | .pure a => f a
   | .impure op k => .impure op (fun x => bind (k x) f)
@@ -47,7 +51,7 @@ instance : LawfulMonad (Freer E) :=
 instance : MonadLift E (Freer E) where
   monadLift op := .impure op .pure
 
-def fold {m : Type u → Type w} [Monad m]
+@[expose] def fold {m : Type u → Type w} [Monad m]
     (h : (β : Type u) → E β → m β) (t : Freer E α) : m α :=
   match t with
   | .pure a => Pure.pure a
@@ -90,7 +94,7 @@ abbrev Final (E : Type u → Type v) (α : Type u) :=
 -- declaration, as reification and execution need; `Final.Rel p p` is the same-universe case.
 derive_type_rel Final (repr := m)
 
-def toFinal {E : Type u → Type v} {α : Type u} (t : Freer E α) :
+@[expose] def toFinal {E : Type u → Type v} {α : Type u} (t : Freer E α) :
     Final.{u, v, w} E α := fun {m} _ h => Freer.fold (m := m) h t
 
 -- `toFinal.parametric` uses `Freer.fold.parametric` to show that every syntax tree
@@ -104,7 +108,7 @@ theorem toFinal_rel {E : Type u → Type v} {α : Type u} (t : Freer E α) :
   toFinal.parametric t
 
 -- Reification needs an output universe large enough to instantiate m := Freer E.
-def toFreer {E : Type u → Type v} {α : Type u}
+@[expose] def toFreer {E : Type u → Type v} {α : Type u}
     (p : Final.{u, v, max (u + 1) v} E α) : Freer E α :=
   p (m := Freer E) (fun _ => monadLift)
 
@@ -112,7 +116,7 @@ theorem toFreer_toFinal {E : Type u → Type v} {α : Type u} (t : Freer E α) :
     toFreer (toFinal t) = t := Freer.fold_self t
 
 -- Interpreting syntax gives a relation preserved by the monad operations.
-def graph {E : Type u → Type v} {m : Type u → Type w} [Monad m]
+@[expose] def graph {E : Type u → Type v} {m : Type u → Type w} [Monad m]
     (h : (β : Type u) → E β → m β) : ComputationRelation (Freer E) m :=
   fun {_} t x => Freer.fold h t = x
 

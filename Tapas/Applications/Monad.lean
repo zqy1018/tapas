@@ -1,6 +1,8 @@
-import Tapas.Applications.Monad.EffectRelation
-import Tapas.Applications.Monad.CommonMonadRelations
-import Tapas.Applications.Monad.Loop
-import Tapas.Applications.Monad.StdLoops
-import Tapas.Applications.Monad.EffectInference
-import Tapas.Applications.Monad.PartialEffectInference
+module
+
+public import Tapas.Applications.Monad.EffectRelation
+public import Tapas.Applications.Monad.CommonMonadRelations
+public import Tapas.Applications.Monad.Loop
+public import Tapas.Applications.Monad.StdLoops
+public import Tapas.Applications.Monad.EffectInference
+public import Tapas.Applications.Monad.PartialEffectInference

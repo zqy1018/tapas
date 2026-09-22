@@ -1,6 +1,11 @@
+module
+
 import TapasTest.TestingUtils
 import TapasTest.Applications.Monad.Ghost.Basic
+meta import TapasTest.Applications.Monad.Ghost.Basic -- shake: keep (required by #guard/#eval)
 import Std.Tactic.Do
+import Std.Internal.Do
+import Std.Tactic.BVDecide.Normalize
 
 /-!
 Verify loops with invariants that observe their ghost state. The programs use only

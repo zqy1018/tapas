@@ -1,3 +1,5 @@
-import Tapas.LogicalRelation.Derive.SelectionFrontend
-import Tapas.LogicalRelation.Derive.InterfaceRelation
-import Tapas.LogicalRelation.Derive.TypeRelation
+module
+
+public import Tapas.LogicalRelation.Derive.SelectionFrontend
+public import Tapas.LogicalRelation.Derive.InterfaceRelation
+public import Tapas.LogicalRelation.Derive.TypeRelation

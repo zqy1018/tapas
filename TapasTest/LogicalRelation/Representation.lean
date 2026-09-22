@@ -1,3 +1,5 @@
+module
+
 import Tapas
 
 open Tapas.LogicalRelation

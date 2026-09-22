@@ -1,4 +1,9 @@
-import Lean
+module
+
+public meta import Lean
+import Lean.Exception
+
+public meta section
 
 /-!
 Optional names for already constructed base relation types.

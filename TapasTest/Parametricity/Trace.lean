@@ -1,3 +1,5 @@
+module
+
 import Tapas
 
 namespace TapasTest.Parametricity.Trace
@@ -80,7 +82,7 @@ derive_parametric caller (repr := α)
 set_option trace.Tapas.Parametricity true in
 derive_parametric caller (repr := α)
 
-/-- info: 'TapasTest.Parametricity.Trace.caller.parametric' does not depend on any axioms -/
+/-- info: '_private.TapasTest.Parametricity.Trace.0.TapasTest.Parametricity.Trace.caller.parametric' does not depend on any axioms -/
 #guard_msgs in
 #print axioms caller.parametric
 

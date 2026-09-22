@@ -1,4 +1,7 @@
+module
+
 import TapasTest.TestingUtils
+import all Init.Data.Array.Basic -- exercise mapM's unsupported private helper
 
 /-!
 Recursive monadic programs: the signature `infer_effects` gives each recursion shape, and what
@@ -100,7 +103,7 @@ example :
 derive_parametric evenSteps
 
 -- The first invocation already added the other member's theorem.
-/-- error: parametricity: declaration already exists: TapasTest.Applications.Monad.ControlFlow.Recursion.oddSteps.parametric -/
+/-- error: parametricity: declaration already exists: _private.TapasTest.Applications.Monad.ControlFlow.Recursion.0.TapasTest.Applications.Monad.ControlFlow.Recursion.oddSteps.parametric -/
 #guard_msgs in
 derive_parametric oddSteps
 
@@ -298,7 +301,7 @@ partial def spin (n : Nat) : m Nat := do
 example : ({m : Type → Type} → [Monad m] → [MonadStateOf Nat m] → Nat → m Nat) := @spin
 
 /--
-error: parametricity: expected a definition with a body: TapasTest.Applications.Monad.ControlFlow.Recursion.spin
+error: parametricity: expected a definition with a body: _private.TapasTest.Applications.Monad.ControlFlow.Recursion.0.TapasTest.Applications.Monad.ControlFlow.Recursion.spin
 -/
 #guard_msgs in
 derive_parametric spin
@@ -364,7 +367,7 @@ def bad : Nat → m Nat
 end
 
 /--
-error: parametricity: no applicable translation for TapasTest.Applications.Monad.ControlFlow.Recursion.unregistered; use `derive_parametric TapasTest.Applications.Monad.ControlFlow.Recursion.unregistered` or `attribute [parametric] theoremName`
+error: parametricity: no applicable translation for _private.TapasTest.Applications.Monad.ControlFlow.Recursion.0.TapasTest.Applications.Monad.ControlFlow.Recursion.unregistered; use `derive_parametric _private.TapasTest.Applications.Monad.ControlFlow.Recursion.0.TapasTest.Applications.Monad.ControlFlow.Recursion.unregistered` or `attribute [parametric] theoremName`
 -/
 #guard_msgs in
 derive_parametric good

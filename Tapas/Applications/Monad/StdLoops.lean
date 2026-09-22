@@ -1,5 +1,10 @@
-import Tapas.Applications.Monad.CommonMonadRelations
+module
+
+public import Tapas.Applications.Monad.CommonMonadRelations
 import Tapas.Parametricity.Program
+import all Init.Data.List.Control -- derive translations from filterAuxM and filterM bodies
+
+public section
 
 /-!
 Translations for the standard library's loops and monadic traversals, so that a `for` loop

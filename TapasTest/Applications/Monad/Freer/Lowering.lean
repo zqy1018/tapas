@@ -1,5 +1,8 @@
+module
+
 import TapasTest.TestingUtils
 import TapasTest.Applications.Monad.Freer.Basic
+meta import TapasTest.Applications.Monad.Freer.Basic -- shake: keep (required by #guard/#eval)
 
 /-!
 Lower a request for a pair into two individual reads. The output is another Freer

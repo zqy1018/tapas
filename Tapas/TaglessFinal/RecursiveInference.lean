@@ -1,5 +1,10 @@
-import Tapas.TaglessFinal.Inference
-import Tapas.TaglessFinal.LeanInternals
+module
+
+public import Tapas.TaglessFinal.Inference
+public import Tapas.TaglessFinal.LeanInternals
+import Lean.Elab.DefView
+
+public meta section
 
 /-!
 Infer the typeclass instance parameters of a *declaration*, including a recursive one.
@@ -174,10 +179,23 @@ def addInferredDefinitions (views : Array DefView) (vars : Array Expr)
   -- NOTE: The ref is the `declId` rather than the `headerRef` this module has no use for.
   let expanded ← views.mapM fun view => withRef view.declId do
     Term.expandDeclId (← getCurrNamespace) (← getLevelNames) view.declId view.modifiers
+  for view in views, declId in expanded do
+    match view.modifiers.computeKind with
+    | .meta => modifyEnv (markMeta · declId.declName)
+    | .noncomputable => modifyEnv (addNoncomputable · declId.declName)
+    | .regular => pure ()
+  withExporting (isExporting := expanded.any (!isPrivateName ·.declName)) do
   let headers ← (views.zip expanded).mapM fun (view, declId) =>
     elabDefHeader declId view (fun n => expanded.any (·.shortName == n)) defaultDefType
   -- End from Lean.
 
+  -- As in `elabMutualDef`, check public signatures before making unexposed bodies private.
+  withoutExporting (when := headers.all fun header =>
+    header.modifiers.anyAttr (·.name == `no_expose) ||
+      !(header.kind == .abbrev || header.kind == .instance ||
+        header.modifiers.anyAttr (·.name == `expose))) do
+  let headers := headers.map fun header =>
+    { header with modifiers.attrs := header.modifiers.attrs.filter (!·.name ∈ [`expose, `no_expose]) }
   withFunLocalDecls headers fun recFVars => do
 
     -- From Lean: the core of the private `elabFunValues` in `Lean/Elab/MutualDef.lean`, with the
@@ -259,6 +277,8 @@ def addInferredDefinitions (views : Array DefView) (vars : Array Expr)
 /-- The definitions of `stx`, which is either one `def`-like declaration or a `mutual` block of
 them. -/
 def inferredDeclViews (stx : Syntax) : CommandElabM (Array DefView) := do
+  let scope ← getScope
+  withExporting (isExporting := scope.isPublic) do
   let elems := if stx.isOfKind ``Parser.Command.mutual then stx[1].getArgs else #[stx]
   elems.mapM fun elem => do
     -- Adapted from `isMutualDefLike` in `Lean/Elab/Declaration.lean`
@@ -267,11 +287,20 @@ def inferredDeclViews (stx : Syntax) : CommandElabM (Array DefView) := do
         definitions"
 
     -- From Lean: the view-building half of `elabMutualDef` in `Lean/Elab/MutualDef.lean`
-    -- without incrementality promises, `markDefEq` for a `:= rfl` body, and module-system export handling.
+    -- without incrementality promises and `markDefEq` for a `:= rfl` body.
     let modifiers ← elabModifiers ⟨elem[0]⟩
+    -- Preserve the command's visibility when its views enter `TermElabM`.
+    let visibility := if modifiers.isInferredPublic (← getEnv) then .public else .private
+    let modifiers := { modifiers with visibility }
     if elems.size > 1 && modifiers.isNonrec then
       throwErrorAt elem "invalid use of 'nonrec' modifier in 'mutual' block"
-    let view ← mkDefView modifiers elem[1]
+    let mut view ← withExporting (isExporting := modifiers.isPublic) do
+      mkDefView modifiers elem[1]
+    if view.kind == .def && (!view.modifiers.isMeta || scope.isMeta) &&
+        scope.attrs.any (· matches `(Parser.Term.attrInstance| expose)) &&
+        !view.modifiers.anyAttr (·.name ∈ [`expose, `no_expose]) then
+      let attr ← Elab.elabAttr (← `(Parser.Term.attrInstance| expose))
+      view := { view with modifiers.attrs := view.modifiers.attrs.push attr }
     -- End from Lean.
 
     -- `deriving` runs after the declaration is added, which this command does not reach.

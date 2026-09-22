@@ -1,4 +1,8 @@
-import TapasTest.TestingUtils
+module
+
+public import TapasTest.TestingUtils
+
+public section
 
 open Tapas.Parametricity Tapas.LogicalRelation
 
@@ -122,8 +126,8 @@ infer_effects
 def functionArgument (x : m Nat) (f : Nat → m Nat) : m Nat := x >>= f
 derive_parametric functionArgument
 
-def unknownHelper := infer_effects% pure (37 : Nat)
-def usesUnknown := infer_effects% unknownHelper
+@[expose] def unknownHelper := infer_effects% pure (37 : Nat)
+@[expose] def usesUnknown := infer_effects% unknownHelper
 /-- error: parametricity: no applicable translation for TapasTest.Applications.Monad.Program.unknownHelper; use `derive_parametric TapasTest.Applications.Monad.Program.unknownHelper` or `attribute [parametric] theoremName` -/
 #guard_msgs in
 derive_parametric usesUnknown

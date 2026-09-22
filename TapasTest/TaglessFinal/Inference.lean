@@ -1,4 +1,7 @@
+module
+
 import Tapas
+import all Init.Data.Repr -- check the String interpreter by kernel reduction
 
 universe u
 

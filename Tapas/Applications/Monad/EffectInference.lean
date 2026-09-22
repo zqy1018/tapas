@@ -1,4 +1,8 @@
-import Tapas.TaglessFinal.RecursiveInference
+module
+
+public import Tapas.TaglessFinal.RecursiveInference
+
+public meta section
 
 namespace Tapas
 

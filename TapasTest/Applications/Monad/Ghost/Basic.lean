@@ -1,4 +1,8 @@
-import Tapas
+module
+
+public import Tapas
+
+public section
 
 /-!
 A Lean-only adapter for *ghost state*: a program performs ghost updates, and the ghost
@@ -41,7 +45,7 @@ end Interpretations
 section Erase
 
 /-- The instrumented run returns the same value, from every initial ghost state. -/
-def Erase (σ : Type u) (m : Type u → Type v) [Monad m] : ComputationRelation (StateT σ m) m := fun {_} withGhost noGhost =>
+@[expose] def Erase (σ : Type u) (m : Type u → Type v) [Monad m] : ComputationRelation (StateT σ m) m := fun {_} withGhost noGhost =>
   ∀ s, Prod.fst <$> withGhost s = noGhost
 
 variable {σ : Type u} {m : Type u → Type v} [Monad m]
@@ -92,7 +96,7 @@ and read off by `shift`.
 section Reindex
 
 /-- Same value, and ghost states that agree under `shift`, from every initial state. -/
-def Reindex (shift : σ → τ) (m : Type u → Type v) [Monad m] : ComputationRelation (StateT σ m) (StateT τ m) :=
+@[expose] def Reindex (shift : σ → τ) (m : Type u → Type v) [Monad m] : ComputationRelation (StateT σ m) (StateT τ m) :=
   fun {_} left right =>
     ∀ s, (fun p => (p.1, shift p.2)) <$> left s = right (shift s)
 

@@ -1,3 +1,5 @@
+module
+
 import TapasTest.TestingUtils
 
 open Tapas.LogicalRelation Tapas.Parametricity Lean.Order

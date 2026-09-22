@@ -1,4 +1,9 @@
-import Lean
+module
+
+public meta import Lean
+import Lean.Elab.Term.TermElabM
+
+public meta section
 
 /-!
 The parts of Lean's own `def` command that this library has to reproduce.

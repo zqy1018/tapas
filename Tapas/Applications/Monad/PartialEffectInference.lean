@@ -1,5 +1,9 @@
-import Tapas.Applications.Monad.EffectInference
-import Tapas.Applications.Monad.Loop
+module
+
+public import Tapas.Applications.Monad.EffectInference
+public import Tapas.Applications.Monad.Loop
+
+public meta section
 
 namespace Tapas
 

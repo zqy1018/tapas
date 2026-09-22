@@ -1,4 +1,6 @@
-import Tapas
+module
+
+public import Tapas
 
 open Tapas.LogicalRelation
 

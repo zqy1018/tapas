@@ -1,5 +1,8 @@
+module
+
 import TapasTest.TestingUtils
 import TapasTest.Applications.Monad.Freer.Basic
+meta import TapasTest.Applications.Monad.Freer.Basic -- shake: keep (required by #guard/#eval)
 
 /-!
 A state capability example and regression checks for freer / tagless-final conversion.

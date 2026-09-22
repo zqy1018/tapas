@@ -1,4 +1,10 @@
-import Lean
+module
+
+public meta import Lean
+import Std.Tactic.BVDecide.Normalize.Prop
+import Lean.Exception
+
+public meta section
 
 /-!
 The two persistent tables that `relationAt` consults.
@@ -75,7 +81,7 @@ structure RelatorInfo where
   numParams : Nat
   deriving Inhabited
 
-initialize relatorExt : SimplePersistentEnvExtension RelatorInfo
+private initialize relatorExt : SimplePersistentEnvExtension RelatorInfo
     (NameMap RelatorInfo) ← registerSimplePersistentEnvExtension {
   addEntryFn := fun s info => s.insert info.typeConstructor info
   addImportedFn := mkStateFromImportedEntries (fun s info => s.insert info.typeConstructor info) {}

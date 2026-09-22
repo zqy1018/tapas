@@ -1,6 +1,12 @@
-import TapasTest.TestingUtils
-import TapasTest.Applications.Monad.Freer.Basic
+module
+
+public import TapasTest.TestingUtils
+public import TapasTest.Applications.Monad.Freer.Basic
+public import Std.Do
 import Std.Tactic.Do
+import Std.Tactic.BVDecide.Normalize.Prop
+
+public section
 
 /-!
 Verify a reified program from operation specifications, then transfer the result

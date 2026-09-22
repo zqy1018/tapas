@@ -1,4 +1,9 @@
-import Init.Internal.Order.Basic
+module
+
+public import Init.Internal.Order.Basic
+import all Init.Internal.Order.Basic -- proofs unfold admissible and prod_csup
+
+public section
 
 /-!
 This module defines `AdmissibleRel` for relations closed under suprema of chains
@@ -15,7 +20,7 @@ open Lean.Order Lean.Order.PartialOrder
 
 /-- A relation closed under suprema of chains of related pairs. Lean includes
 the empty chain in admissibility, so this also requires related bottom values. -/
-def AdmissibleRel {α : Sort u} {β : Sort v} [CCPO α] [CCPO β]
+@[expose] def AdmissibleRel {α : Sort u} {β : Sort v} [CCPO α] [CCPO β]
     (R : α → β → Prop) : Prop :=
   admissible (fun p : α ×' β => R p.1 p.2)
 

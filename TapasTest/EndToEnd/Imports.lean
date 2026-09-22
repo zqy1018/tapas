@@ -1,5 +1,9 @@
+module
+
 import TapasTest.EndToEnd.Carrier
+meta import TapasTest.EndToEnd.Carrier -- shake: keep (required by #guard/#eval)
 import TapasTest.EndToEnd.Indexed
+meta import TapasTest.EndToEnd.Indexed -- shake: keep (required by #guard/#eval)
 
 namespace TapasTest.EndToEnd.Imports
 

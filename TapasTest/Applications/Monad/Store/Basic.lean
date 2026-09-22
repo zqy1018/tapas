@@ -1,4 +1,8 @@
-import Tapas
+module
+
+public import Tapas
+
+public section
 
 /-!
 Interpret a logical key-value store using a finite
@@ -22,7 +26,7 @@ abbrev LogicalStore := String → Nat
 abbrev Journal := List (String × Nat)
 
 /-- Most recent writes shadow older ones; absent keys contain zero. -/
-def decode : Journal → LogicalStore
+@[expose] def decode : Journal → LogicalStore
   | [] => fun _ => 0
   | (key, value) :: rest => fun query => if query = key then value else decode rest query
 
@@ -45,7 +49,7 @@ instance targetStore : Store Target where
 
 /-- Preserve returned values and logical final stores for every represented initial store.
 The target's journal layout and shadowed entries are intentionally unobservable. -/
-def R : ComputationRelation Source Target := fun {_} source target =>
+@[expose] def R : ComputationRelation Source Target := fun {_} source target =>
   ∀ journal, source (decode journal) = ((target journal).1, decode (target journal).2)
 
 theorem pure_rel {α : Type} (a : α) : R (pure a) (pure a) := by

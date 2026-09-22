@@ -1,2 +1,4 @@
-import Tapas.Utils.Expr
-import Tapas.Utils.UniverseLevels
+module
+
+public import Tapas.Utils.Expr
+public import Tapas.Utils.UniverseLevels

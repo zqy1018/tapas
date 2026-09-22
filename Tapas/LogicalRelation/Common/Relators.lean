@@ -1,4 +1,8 @@
+module
+
 import Tapas.LogicalRelation.Registry
+
+public section
 
 /-!
 Relators for common data types, available to every relation generator:

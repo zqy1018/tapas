@@ -1,3 +1,5 @@
+module
+
 import Tapas
 
 open Lean Meta Tapas.LogicalRelation
@@ -81,7 +83,7 @@ class Pair (A : Type u) (B : Type u) where
   lit : Nat → A
 
 /--
-error: logical relation: expected exactly one representation parameter of TapasTest.LogicalRelation.Selection.Pair, selected:
+error: logical relation: expected exactly one representation parameter of _private.TapasTest.LogicalRelation.Selection.0.TapasTest.LogicalRelation.Selection.Pair, selected:
   [A, B]
 -/
 #guard_msgs in
@@ -230,7 +232,7 @@ derive_parametric unsuitableImplicit (repr := A)
 -- An explicit representation still works when selected explicitly; instances do not count.
 def explicitRepresentation (A : Type u) [Carrier A] : A := Carrier.lit 1
 
-/-- error: parametricity: TapasTest.LogicalRelation.Selection.explicitRepresentation has no implicit parameter; use `(repr := name)` to select a representation -/
+/-- error: parametricity: _private.TapasTest.LogicalRelation.Selection.0.TapasTest.LogicalRelation.Selection.explicitRepresentation has no implicit parameter; use `(repr := name)` to select a representation -/
 #guard_msgs in
 derive_parametric explicitRepresentation
 
@@ -238,12 +240,12 @@ derive_parametric explicitRepresentation (repr := 0)
 
 def noParameters : Nat := 0
 
-/-- error: parametricity: TapasTest.LogicalRelation.Selection.noParameters has no implicit parameter; use `(repr := name)` to select a representation -/
+/-- error: parametricity: _private.TapasTest.LogicalRelation.Selection.0.TapasTest.LogicalRelation.Selection.noParameters has no implicit parameter; use `(repr := name)` to select a representation -/
 #guard_msgs in
 derive_parametric noParameters
 
 /--
-error: parametricity: TapasTest.LogicalRelation.Selection.outOfRange has no parameter at index 9; there are 2
+error: parametricity: _private.TapasTest.LogicalRelation.Selection.0.TapasTest.LogicalRelation.Selection.outOfRange has no parameter at index 9; there are 2
 -/
 #guard_msgs in
 derive_parametric outOfRange (repr := 9)

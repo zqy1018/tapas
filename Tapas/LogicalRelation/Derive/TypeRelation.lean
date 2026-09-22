@@ -1,5 +1,10 @@
-import Tapas.LogicalRelation.Translation
-import Tapas.LogicalRelation.Derive.SelectionFrontend
+module
+
+public import Tapas.LogicalRelation.Translation
+public import Tapas.LogicalRelation.Derive.SelectionFrontend
+public meta import Tapas.LogicalRelation.Derive.SelectionFrontend
+
+public meta section
 
 /-!
 Generating the type relation `T.Rel` for a type `T`.
@@ -96,8 +101,9 @@ def deriveTypeRelation (declName : Name) (selection : RepresentationSelection)
           let type ← mkForallFVars binders (mkSort .zero)
           let value ← mkLambdaFVars binders rel
           let levels := (collectLevelParams (collectLevelParams {} type) value).params.toList
-          addDecl <| .defnDecl <| ← mkDefinitionValInferringUnsafe relation levels type value
-            (.regular 1)
+          -- Clients use the generated relation by unfolding its defining proposition.
+          addDecl (.defnDecl (← mkDefinitionValInferringUnsafe relation levels type value
+            (.regular 1))) (forceExpose := true)
 
 /--
 `derive_type_rel T (repr := A)` generates `T.Rel p q`, the relation between two values

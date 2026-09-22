@@ -1,4 +1,6 @@
-import Tapas.Parametricity.Registry
-import Tapas.Parametricity.Fixpoint
-import Tapas.Parametricity.Proof
-import Tapas.Parametricity.Program
+module
+
+public import Tapas.Parametricity.Registry
+public import Tapas.Parametricity.Fixpoint
+public import Tapas.Parametricity.Proof
+public import Tapas.Parametricity.Program

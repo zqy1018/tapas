@@ -1,2 +1,4 @@
-import Tapas.LogicalRelation.Common.Relators
-import Tapas.LogicalRelation.Common.BaseRelationAliases
+module
+
+public import Tapas.LogicalRelation.Common.Relators
+public import Tapas.LogicalRelation.Common.BaseRelationAliases

@@ -1,4 +1,8 @@
-import Tapas
+module
+
+public import Tapas
+
+public meta section
 
 namespace TapasTest
 

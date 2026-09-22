@@ -1,4 +1,10 @@
-import TapasTest.TestingUtils
+module
+
+public import TapasTest.TestingUtils
+import all Init.Internal.Order.Basic -- proofs unfold FlatOrder.mk
+import Std.Tactic.BVDecide.Normalize.Prop
+
+public section
 
 /-!
 A least-fixpoint loop in two monads, related by both a hand-written certificate and an
@@ -16,7 +22,7 @@ abbrev Source := ReaderT Nat Option
 abbrev Target := ReaderT (Nat × Bool) Option
 
 -- The target carries an extra configuration field. Only its first component is observed.
-def R : ComputationRelation Source Target := fun {_} x y =>
+@[expose] def R : ComputationRelation Source Target := fun {_} x y =>
   ∀ cfg cfg', cfg = cfg'.1 → x cfg = y cfg'
 
 theorem relation_admissible ⦃α : Type⦄ : AdmissibleRel (R (α := α)) :=

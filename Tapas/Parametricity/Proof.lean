@@ -1,6 +1,11 @@
-import Tapas.LogicalRelation
-import Tapas.Parametricity.Fixpoint
-import Tapas.Parametricity.Registry
+module
+
+public import Tapas.LogicalRelation
+public import Tapas.Parametricity.Fixpoint
+public import Tapas.Parametricity.Registry
+public meta import Tapas.LogicalRelation.Translation
+
+public meta section
 
 /-!
 ## Proving that two interpretations are related

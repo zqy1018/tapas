@@ -1,6 +1,12 @@
-import Tapas.LogicalRelation.Registry
-import Tapas.LogicalRelation.BaseRelationAliasing
-import Tapas.Utils
+module
+
+public import Tapas.LogicalRelation.Registry
+public import Tapas.LogicalRelation.BaseRelationAliasing
+public import Tapas.Utils
+public meta import Tapas.LogicalRelation.Registry
+public import Lean.Meta.Basic
+
+public meta section
 
 /-!
 The representation parameter: the base relation between its two interpretations,

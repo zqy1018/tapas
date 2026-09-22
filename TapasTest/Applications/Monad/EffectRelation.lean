@@ -1,4 +1,8 @@
-import TapasTest.TestingUtils
+module
+
+public import TapasTest.TestingUtils
+
+public section
 
 open Tapas.LogicalRelation
 
@@ -283,7 +287,7 @@ derive_effect_rel LeakyError
 
 /- A registered relator takes precedence over unfolding a type constructor that is a
 definition, as for quotient-based collections. -/
-def Bag (α : Type u) := List α
+@[expose] def Bag (α : Type u) := List α
 
 def Bag.Rel {α : Type u} {β : Type v} (r : α → β → Prop) (xs : Bag α) (ys : Bag β) : Prop :=
   ListRel r xs ys

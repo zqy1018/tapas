@@ -1,4 +1,9 @@
-import Tapas.LogicalRelation.Representation
+module
+
+public import Tapas.LogicalRelation.Representation
+public meta import Tapas.LogicalRelation.Representation
+
+public section
 
 /-!
 `RepresentationSelection` is the rule the translation consults. The translation itself
@@ -45,6 +50,8 @@ the type of a binder to say that the binder is a representation. It survives
 elaboration, so the generator can see it, and it disappears again when the binder
 is reintroduced at the type it wraps. -/
 abbrev relMarker (α : Sort u) : Sort u := α
+
+meta section
 
 /-- Select every binder whose type the caller wrapped in `relMarker`, at the type
 it wraps. The only rule written on its own: selecting by name is what a spec's
@@ -126,5 +133,7 @@ where
     withLocalDecl name bi dom fun x => do
       let (rest, read) ← go last (i + 1) (body.instantiate1 x)
       return (← mkForallFVars #[x] rest, read)
+
+end
 
 end Tapas.LogicalRelation

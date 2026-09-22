@@ -1,3 +1,5 @@
+module
+
 import Tapas
 
 open Tapas.LogicalRelation Tapas.Parametricity
@@ -19,11 +21,11 @@ example : Transformation.Rel (@once.{u}) (@once.{v}) := once.parametric
 -- A named representation may be bound by the return type rather than the written signature.
 def aliasedOnce : Transformation.{u} := @once
 
-/-- error: parametricity: TapasTest.Parametricity.TypeRelation.aliasedOnce has no implicit parameter; use `(repr := name)` to select a representation -/
+/-- error: parametricity: _private.TapasTest.Parametricity.TypeRelation.0.TapasTest.Parametricity.TypeRelation.aliasedOnce has no implicit parameter; use `(repr := name)` to select a representation -/
 #guard_msgs in
 derive_parametric aliasedOnce
 
-/-- error: parametricity: TapasTest.Parametricity.TypeRelation.aliasedOnce has no parameter at index 0; there are 0 -/
+/-- error: parametricity: _private.TapasTest.Parametricity.TypeRelation.0.TapasTest.Parametricity.TypeRelation.aliasedOnce has no parameter at index 0; there are 0 -/
 #guard_msgs in
 derive_parametric aliasedOnce (repr := 0)
 

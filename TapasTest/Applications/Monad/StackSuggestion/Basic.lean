@@ -1,4 +1,10 @@
-import Tapas
+module
+
+public import Tapas
+public import TapasTest.Applications.Monad.StackSuggestion.Orderings
+public meta import TapasTest.Applications.Monad.StackSuggestion.Orderings
+
+public meta section
 
 /-!
 `#suggest_stack`, the concrete monads that can run a program whose capabilities were
@@ -150,16 +156,6 @@ def capabilityLayers (monad capability : Expr) : MetaM (Array Expr) := do
   return layers
 
 /-! ## Stacks -/
-
-/-- Every ordering of `xs`. -/
-def orderings : List α → List (List α)
-  | [] => [[]]
-  | x :: xs => (orderings xs).flatMap (insertEverywhere x)
-where
-  /-- `x` placed at each position of `ys`. -/
-  insertEverywhere (x : α) : List α → List (List α)
-    | [] => [[x]]
-    | y :: ys => (x :: y :: ys) :: (insertEverywhere x ys).map (y :: ·)
 
 /-- The layers applied outside-in to `Id`, when their kinds line up. -/
 def stackOf? (layers : Array Expr) : MetaM (Option Expr) := do

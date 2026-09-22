@@ -1,4 +1,8 @@
-import Init
+module
+
+public import Init
+
+public section
 
 namespace Tapas.LogicalRelation
 

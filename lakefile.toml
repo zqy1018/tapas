@@ -2,6 +2,7 @@ name = "Tapas"
 version = "0.1.0"
 defaultTargets = ["Tapas"]
 testDriver = "TapasTest"
+requiresModuleSystem = true
 
 [[lean_lib]]
 name = "Tapas"

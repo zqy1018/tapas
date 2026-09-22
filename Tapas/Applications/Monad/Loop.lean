@@ -1,5 +1,10 @@
-import Tapas.Applications.Monad.CommonMonadRelations
+module
+
+public import Tapas.Applications.Monad.CommonMonadRelations
+public import Tapas.Parametricity.Fixpoint
 import Tapas.Parametricity.Program
+
+public section
 
 /-!
 Opt-in least-fixpoint semantics for Lean's `while` and `repeat` syntax.
@@ -15,10 +20,11 @@ Being `scoped`, the instance changes nothing on import. Open
 `Tapas.Parametricity.PartialLoop` to select it, or elaborate one term with
 `infer_effects_partial%`, which introduces it locally instead.
 
-Of the two imports, `Parametricity.Program` is where `derive_parametric` lives, and
+`Parametricity.Program` is where `derive_parametric` lives, and
 `CommonMonadRelations` is there because that command needs `Monad.Rel` registered
 before it can translate a monadic program: the generic layer derives no monadic
-relation on its clients' behalf.
+relation on its clients' behalf. `Parametricity.Fixpoint` exports the admissibility
+condition of the generated certificates.
 -/
 
 namespace Tapas.Parametricity.PartialLoop
@@ -27,7 +33,7 @@ open Lean.Order
 
 /-- Iterate a loop body to its least fixpoint, continuing on `yield` and stopping
 on `done`. The accumulator also carries the elaborator's mutable locals and returns. -/
-def loop {m : Type u → Type v} [Monad m] [∀ α, CCPO (m α)] [MonoBind m]
+@[expose] def loop {m : Type u → Type v} [Monad m] [∀ α, CCPO (m α)] [MonoBind m]
     {β : Type u} (body : Unit → β → m (ForInStep β)) (init : β) : m β := do
   match ← body () init with
   | .done result => pure result
@@ -37,7 +43,7 @@ partial_fixpoint
 derive_parametric loop
 
 /-- The `ForIn` entry point used by the optional loop instance. -/
-def forIn {m : Type u → Type v} [Monad m] [∀ α, CCPO (m α)] [MonoBind m]
+@[expose] def forIn {m : Type u → Type v} [Monad m] [∀ α, CCPO (m α)] [MonoBind m]
     {β : Type u} (_ : Lean.Loop) (init : β) (body : Unit → β → m (ForInStep β)) : m β :=
   loop body init
 

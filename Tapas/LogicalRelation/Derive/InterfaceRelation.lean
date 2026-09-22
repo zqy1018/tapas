@@ -1,5 +1,10 @@
-import Tapas.LogicalRelation.Translation
-import Tapas.LogicalRelation.Derive.SelectionFrontend
+module
+
+public import Tapas.LogicalRelation.Translation
+public import Tapas.LogicalRelation.Derive.SelectionFrontend
+public meta import Tapas.LogicalRelation.Derive.SelectionFrontend
+
+public meta section
 
 -- CHECK `derive_interface_rel` might not generate a class?
 -- CHECK How would it be possible to avoid flattening inherited operations?
@@ -95,8 +100,8 @@ private def addRelationClass (name : Name) (params : Array Expr)
     [{ name, type, ctors := [{ name := ctorName, type := ctorType }] }] false
   -- These structures have no embedded parents: their flat constructor is an
   -- alias of the constructor. Lean uses it for structure syntax and printing.
-  addDecl <| .defnDecl <| ← mkDefinitionValInferringUnsafe flatCtorName levels
-    ctorType (mkConst ctorName (levels.map .param)) .abbrev
+  addDecl (.defnDecl (← mkDefinitionValInferringUnsafe flatCtorName levels
+    ctorType (mkConst ctorName (levels.map .param)) .abbrev)) (forceExpose := true)
   setReducibleAttribute flatCtorName
   -- What makes it a structure rather than a bare inductive: which constants are
   -- its field projections.

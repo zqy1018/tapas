@@ -1,4 +1,12 @@
-import Lean
+module
+
+public meta import Lean
+public meta import Lean.Meta.Tactic.Grind.EqResolution
+import Lean.Elab.ConfigEval.Commands
+import Lean.Exception
+public import Lean.Expr
+
+public meta section
 open Lean Meta Elab Term
 
 namespace TaglessFinal

@@ -1,4 +1,12 @@
-import Tapas.TaglessFinal.AbstractTC
+module
+
+public import Tapas.TaglessFinal.AbstractTC
+public meta import Tapas.TaglessFinal.AbstractTC
+import Lean.Exception
+public import Lean.Message
+import Lean.Data.LOption
+
+public meta section
 
 /-!
 (The two words are kept apart throughout. An *argument* is an instance the body

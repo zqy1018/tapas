@@ -1,4 +1,9 @@
-import Lean
+module
+
+public meta import Lean
+import Lean.Exception
+
+public meta section
 
 /-!
 Parametricity rules available to subsequent derivations.
@@ -13,7 +18,7 @@ namespace Tapas.Parametricity
 
 open Lean Meta
 
-initialize parametricExt : SimplePersistentEnvExtension (Name × Name)
+private initialize parametricExt : SimplePersistentEnvExtension (Name × Name)
     -- `Array Name` since for a single program there can be multiple parametricity theorems.
     (NameMap (Array Name)) ← do
   let addEntry : NameMap (Array Name) → Name × Name → NameMap (Array Name) := fun s (source, proof) =>

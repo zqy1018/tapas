@@ -1,5 +1,8 @@
+module
+
 import TapasTest.TestingUtils
 import TapasTest.Applications.Monad.Store.Basic
+meta import TapasTest.Applications.Monad.Store.Basic -- shake: keep (required by #guard/#eval)
 
 open Tapas.Parametricity Tapas.LogicalRelation TapasTest.Applications.Monad.Store.Basic
 
