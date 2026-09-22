@@ -2,8 +2,9 @@ import Init.Internal.Order.Basic
 
 /-!
 This module defines `AdmissibleRel` for relations closed under suprema of chains
-of related pairs. It proves admissibility for equality and provides function
-relation constructions via `AdmissibleRel.pi` and `AdmissibleRel.pointwise`.
+of related pairs. It proves admissibility for equality, provides function
+relation constructions via `AdmissibleRel.pi` and `AdmissibleRel.pointwise`, and covers the
+one-sided case of a function into a flat order with `AdmissibleRel.flat_sync`.
 The theorem `fix_rel` shows that two monotone functionals preserving an admissible
 relation have least fixpoints related by that same relation.
 -/
@@ -106,6 +107,68 @@ theorem pointwise {ι : Sort u} {α : ι → Sort v} {β : ι → Sort w}
     rintro _ ⟨f, hf, rfl⟩
     exact hfg f hf i)
   simpa only [← csup_eval hc i i] using hp
+
+private theorem flat_rel_cases {α : Sort u} {b : α} {x y : FlatOrder b}
+    (h : x ⊑ y) : x = b ∨ x = y := by
+  cases h
+  · exact Or.inl rfl
+  · exact Or.inr rfl
+
+/-- Admissibility when the left side is a function into a flat order and the right side is
+a single flat-order value. Neither `pi` nor `pointwise` applies, since only one side is a
+function.
+
+`hsync` is what makes this work. A chain in a flat order has a maximum, so its supremum is
+one of its own members, and a relation closed on the members is closed on the supremum. A
+chain of *functions* need not have one, since different arguments may become defined at
+different stages. Requiring the two sides to be defined together removes that: the function
+side is defined everywhere or nowhere, so the chain of pairs has a maximum again. -/
+theorem flat_sync {ι : Sort u} {α : Sort v} {β : Sort w} {b : α} {b' : β}
+    {R : (ι → FlatOrder b) → FlatOrder b' → Prop}
+    (hbot : R (fun _ => b) b')
+    (hsync : ∀ f y, R f y → ∀ i, (y = b' ↔ f i = b)) :
+    AdmissibleRel R := by
+  intro c hc h
+  rw [← prod_csup_eq]
+  show R (CCPO.csup (PProd.chain.chain_fst hc)) (CCPO.csup (PProd.chain.chain_snd hc))
+  by_cases hdef : ∃ p, c p ∧ p.2 ≠ b'
+  · -- Some member is already defined; being defined makes it the maximum of the chain.
+    obtain ⟨p, hp, hp2⟩ := hdef
+    have hp1 : ∀ j, p.1 j ≠ b := fun j hj => hp2 ((hsync _ _ (h p hp) j).mpr hj)
+    have hmax : ∀ q, c q → q.1 ⊑ p.1 ∧ q.2 ⊑ p.2 := by
+      intro q hq
+      rcases hc q p hq hp with hle | hle
+      · exact hle
+      · refine ⟨fun j => ?_, ?_⟩
+        · rcases flat_rel_cases (hle.1 j) with he | he
+          · exact absurd he (hp1 j)
+          · rw [he]; exact rel_refl
+        · rcases flat_rel_cases hle.2 with he | he
+          · exact absurd he hp2
+          · rw [he]; exact rel_refl
+    rw [rel_antisymm (csup_le (PProd.chain.chain_fst hc) (fun a ⟨y, hay⟩ => (hmax ⟨a, y⟩ hay).1))
+          (le_csup (PProd.chain.chain_fst hc) ⟨p.2, hp⟩),
+        rel_antisymm (csup_le (PProd.chain.chain_snd hc) (fun y ⟨a, hay⟩ => (hmax ⟨a, y⟩ hay).2))
+          (le_csup (PProd.chain.chain_snd hc) ⟨p.1, hp⟩)]
+    exact h p hp
+  · -- Nothing in the chain is defined yet, so both suprema are the bottom element.
+    have hundef : ∀ p, c p → p.2 = b' :=
+      fun p hp => Classical.byContradiction (fun hne => hdef ⟨p, hp, hne⟩)
+    have hbot1 : ∀ q, c q → q.1 ⊑ (fun _ => b) := by
+      intro q hq j
+      have hj : q.1 j = b := (hsync _ _ (h q hq) j).mp (hundef q hq)
+      show q.1 j ⊑ b
+      rw [hj]
+      exact rel_refl
+    have hbot2 : ∀ q, c q → q.2 ⊑ b' := by
+      intro q hq
+      rw [hundef q hq]
+      exact rel_refl
+    rw [rel_antisymm (csup_le (PProd.chain.chain_fst hc) (fun a ⟨y, hay⟩ => hbot1 ⟨a, y⟩ hay))
+          (fun _ => FlatOrder.rel.bot),
+        rel_antisymm (csup_le (PProd.chain.chain_snd hc) (fun y ⟨a, hay⟩ => hbot2 ⟨a, y⟩ hay))
+          FlatOrder.rel.bot]
+    exact hbot
 
 end AdmissibleRel
 
