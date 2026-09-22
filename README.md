@@ -1,9 +1,14 @@
-# Tagless Final Style and Parametricity
+# Tapas: tagless final and parametricity
 
-Tapas separates three operations: abstracting missing instance arguments,
-generating logical relations, and proving that a definition preserves a relation.
+Tapas is a Lean library for writing programs against abstract interfaces and
+proving relationships between their interpretations. It infers the required type
+class parameters, generates logical relations, and derives parametricity theorems
+checked by Lean's kernel. These theorems lift compatibility proofs for individual
+operations to guarantees about whole programs.
 
-## Instance inference
+## A small example
+
+Write an arithmetic expression once, then choose whether to evaluate or print it:
 
 ```lean
 import Tapas
@@ -14,87 +19,73 @@ class Arith (A : Type u) where
   lit : Nat → A
   add : A → A → A
 
-def atoms := inferFinal% (A : Type u) =>
-  [Arith.lit (A := A) 1, Arith.add (Arith.lit 2) (Arith.lit 3)]
+def expression := infer_final% (A : Type u) =>
+  Arith.add (A := A) (Arith.lit 1) (Arith.lit 2)
 
-example : {A : Type u} → [Arith A] → List A := @atoms
+instance : Arith Nat := ⟨id, Nat.add⟩
+instance : Arith String := ⟨toString, fun x y => s!"({x} + {y})"⟩
+
+#eval expression (A := Nat)     -- 3
+#eval expression (A := String)  -- "(1 + 2)"
 
 derive_interface_rel Arith (repr := A)
-derive_parametric atoms (repr := A)
+derive_parametric expression (repr := A)
 
 example {A : Type u} {B : Type v} (R : A → B → Prop)
-    [left : Arith A] [right : Arith B] (h : Arith.Rel R left right) :
-    Tapas.LogicalRelation.ListRel R (atoms (A := A)) (atoms (A := B)) :=
-  atoms.parametric R h
+    [Arith A] [Arith B] (h : Arith.Rel R) :
+    R (expression (A := A)) (expression (A := B)) :=
+  expression.parametric R h
 ```
 
-`inferFinal% (A : ...) (B : ...) => body` introduces rigid Lean parameters and
-abstracts unresolved class dictionaries mentioning any selected parameter.
-Parameter kinds, dependencies, and the body's result type are unrestricted by
-this mechanism. Concrete instances are used normally; duplicate and derivable
-requirements are minimized. Unrelated missing instances and non-class holes
-remain errors.
+`infer_final%` infers the interface `{A : Type u} → [Arith A] → A`.
+`Arith.Rel R` asks that the two interpretations of `lit` and `add` preserve `R`;
+`expression.parametric` proves that the complete expression then preserves it too.
+Choosing a relation and proving compatibility of the interpretations remain the
+user's obligations.
 
-The entry point does not assume that the result is `A` or `repr ?i`. Use explicit
-operation parameters, as above, or annotate the body when Lean needs a type.
-`TaglessFinal.inferInterfaceBody` exposes the shared mechanism with a selector
-and an optional expected type; it has no dependency on logical relations.
+## Usage examples
 
-## Logical relations and proofs
+[TapasTest](TapasTest/) contains usage examples alongside regression tests. These
+examples include the programs, interpretations, and proofs needed to demonstrate
+each application:
 
-`derive_interface_rel C (repr := A)` generates a class `C.Rel` with a preservation
-condition for every flattened operation. `derive_type_rel T (repr := A)` generates
-a relation between values of a final type binding `A`. Ordinary parameters remain
-shared; the selected parameter uses the **shared-index interpretation**:
+- **Multiple interpretations:** [Carrier.lean](TapasTest/EndToEnd/Carrier.lean)
+  evaluates, prints, and reifies arithmetic expressions, proving that evaluating
+  the syntax agrees with direct execution.
+- **Typed languages:** [Indexed.lean](TapasTest/EndToEnd/Indexed.lean) uses a
+  representation indexed by object-language types, including functions and
+  application, and proves agreement between two interpretations.
+- **Data refinement:** [Store](TapasTest/Applications/Monad/Store/README.md)
+  implements a logical store with an update journal, preserving results and
+  logical state even through nested sandboxes.
+- **Ghost state:** [Ghost](TapasTest/Applications/Monad/Ghost/README.md) uses ghost
+  state in loop invariants and execution, proves semantic erasure, and checks
+  that specialization removes ghost updates from IR.
+- **Reification and verification:** [Freer](TapasTest/Applications/Monad/Freer/README.md)
+  proves roundtrips and effect lowering; its
+  [extraction example](TapasTest/Applications/Monad/Freer/Extraction.lean) transfers
+  proofs from operation specifications to concrete executions.
+- **Monad stack selection:** [StackSuggestion](TapasTest/Applications/Monad/StackSuggestion/Programs.lean)
+  uses inferred capabilities to suggest transformer stacks and shows how their
+  order affects state and exceptions.
 
-- `A : Type u` gives `A → B → Prop`.
-- `repr : (n : Nat) → Fin n → Type u` gives
-  `∀ {n} {i : Fin n}, repr n i → repr' n i → Prop`.
-- Arbitrary-length telescopes use the same construction. Index domains can
-  depend on earlier shared indices or contain higher-kinded parameters.
+## Further reading
 
-`LogicalRelation.Aliases` contains optional names such as `ComputationRelation`
-and `IndexedRelation`; `Basic` contains only the relation registries. The generator
-`sharedIndexRelation source target (some name)` always constructs the relation
-type first, then uses an application of `name` only if its arguments can be
-inferred and the application is definitionally equal to that type. Otherwise it
-keeps the generated type. Omitting the name leaves the type expanded. The legacy
-monadic entry points request `ComputationRelation` for readability.
+- [Interface inference](Tapas/TaglessFinal/Inference.lean): `infer_final%` for
+  expressions and `infer_final` for declarations.
+- [Logical relations](Tapas/LogicalRelation/README.md): relations for interfaces
+  and program types, their proof obligations, and supported representation shapes.
+- [Monadic programs](Tapas/Applications/Monad/README.md): `infer_effects%`,
+  `derive_effect_rel`, recursion, and `infer_effects_partial%` for least-fixpoint loops.
 
-This is a semantic choice, separate from instance inference. It is not full
-heterogeneous parametricity: the two interpretations share indices. Relating
-different indices, associated type fields, and dependent results over related
-values require further translation rules. They are currently rejected.
+## Build and tests
 
-`derive_parametric p (repr := A)` translates the elaborated definition into a
-kernel-checked `p.parametric` theorem. Its result may be a selected value, an
-independent value, a function, or a registered container. Local hypotheses,
-interface preservation fields, registered helper theorems, and constructors of
-registered inductive relators provide proof rules. Unknown helpers still need
-`derive_parametric` or `register_parametric`; polymorphism alone is not treated
-as a certificate. Generated relations and proof rules survive module import.
+Use the Lean version pinned in [lean-toolchain](lean-toolchain):
 
-The public derivation commands currently select one parameter at a time. The
-lower-level relation/proof context holds paired parameters and their relations;
-it does not classify representations by arity. `@[effect_relator]` and the legacy
-registry names remain for compatibility.
+```sh
+lake build
+lake test
+```
 
-## Monad applications
-
-`Tapas.Applications.Monad` retains `inferEffects%`, its monadic expected type,
-and `inferPartialEffects%`. Ordinary loops and opt-in least-fixpoint loops retain
-their distinct semantics. Recursive proofs use functional induction; partial
-fixpoints retain their order assumptions and admissibility premises.
-
-`derive_effect_rel` and `derive_type_rel` without explicit selection retain
-the legacy monadic selection behavior. Without `(repr := A)`, `derive_parametric`
-selects a parameter from the result head, as in the original monadic programs;
-container and independent results require explicit selection.
-
-## Validation
-
-Run `lake build` and `lake test`. `TapasTest` covers inference signatures and
-failures, carrier and indexed languages, dependent and higher-kinded shared
-indices, container results and imported proofs, interpreter correctness,
-universes, rollback, recursion, and partial-loop boundaries. Tests audit the
-axioms of generated certificates. Loom and Freer examples are not included.
+The test suite also checks rejected derivations and the axiom dependencies of
+proofs, including generated certificates.
