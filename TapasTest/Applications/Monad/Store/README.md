@@ -1,25 +1,39 @@
 # Data refinement
 
-Using parametricity for data refinement: two interpretations of one
-capability, differing in a representation the capability does not mention.
+One program, two store representations: a logical map and an executable update
+journal. Parametricity proves that changing the representation preserves returned
+values and the logical contents of the final store.
 
-- [Basic.lean](Basic.lean): the capability, its two interpretations, 
-  the relation `R` that defines refinement, and the obligations.
-- [Programs.lean](Programs.lean): programs written once against `Store`, their
-  certificates, executions, and the negative checks.
+- [Basic.lean](Basic.lean): the capability, interpretations, and refinement relation.
+- [Programs.lean](Programs.lean): transfers, nested sandboxes, executions, and
+  refinement certificates, including a rejected implementation.
 
-## The obligations, proved by hand
+## One interface, two interpretations
 
-- **`monadRel`**: `Monad.Rel R`, from `pure_rel` and `bind_rel` through
-  `Monad.Rel.ofPureBind`, both monads being lawful.
-- **`storeRel`**: `Store.Rel R`, the class `derive_effect_rel Store` generates. Its
-  three fields are the refinement's proof obligations, one per operation. `fetch` and
-  `store` are equations; `sandbox` takes a computation, so its obligation is that
-  related bodies give related results.
+`Store m` exposes `fetch`, `store`, and `sandbox`. A sandbox runs a computation,
+keeps its return value, and restores the initial store. Programs use this interface
+without naming the state representation.
+
+- **`Source`** stores a logical map `String → Nat`; writes update the function.
+- **`Target`** stores a journal `List (String × Nat)`; writes prepend entries.
+  `decode` reads the most recent matching entry, returning zero for missing keys.
 
 ## What parametricity gives
 
-- **`transfer_correct`**: `R (transfer (m := Source) amount) (executable amount)`, proved
-  by `transfer.parametric amount R monadRel storeRel`.
-- **`sandboxCertificate`**: the same for `nestedSandbox`, one `sandbox` inside
-  another. Nesting adds no obligation.
+The relation `R source target` states, for every initial journal:
+
+```lean
+source (decode journal) = ((target journal).1, decode (target journal).2)
+```
+
+- **Operation proofs:** `monadRel` proves that `pure` and `bind` preserve `R`;
+  `storeRel` proves it for each store operation. For `sandbox`, related bodies
+  must give related sandboxed executions.
+- **Program certificates:** once a program's parametricity theorem is proved,
+  these operation proofs establish refinement. `certificate` is simply
+  `transfer.parametric amount R monadRel storeRel`; `transfer_correct` exposes the
+  execution equality. `sandboxCertificate` handles nesting with the same proofs.
+
+Refinement compares logical contents, so redundant or shadowed journal entries
+are allowed. The tests demonstrate this and reject a `sandbox` implementation
+that fails to restore state.
