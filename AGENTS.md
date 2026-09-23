@@ -16,6 +16,7 @@
 
 - Unless for the test cases that depend on each other, all test cases should only have a single import for `Tapas`.
 - Test cases should be readable and focusing on the things to test. It is discouraged to write a bunch of meta programs in test cases. 
+- Use utilities from `TapasTest/TestingUtils.lean` properly. 
 
 ## Writing Documentations (Including Comment Blocks)
 
