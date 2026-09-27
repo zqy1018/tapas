@@ -104,6 +104,14 @@ def i12 (b : Bool) := infer_effects% do
     tick
 derive_parametric i12
 
-#guard_parametric i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12
+-- I13: condition comparing a result with a bound read from the environment.
+def i13 := infer_effects% do
+  let n ← tick
+  let bound ← read
+  if n > bound then set bound
+  pure n
+derive_parametric i13
+
+#guard_parametric i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12, i13
 
 end TapasTest.Applications.Monad.ControlFlow.If

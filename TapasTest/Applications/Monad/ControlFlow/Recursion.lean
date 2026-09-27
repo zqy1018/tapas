@@ -85,7 +85,7 @@ def evenSteps : Nat → m Nat
   | 0 => get
   | k + 1 => do set k; oddSteps k
 def oddSteps : Nat → m Nat
-  | 0 => do let label ← readThe String; pure label.length
+  | 0 => do let label ← read; pure (String.length label)
   | k + 1 => evenSteps k
 end
 
@@ -173,6 +173,14 @@ def forList (xs : List Nat) := infer_effects% do
     set x
   get
 derive_parametric forList
+
+-- A list loop whose body reads from the environment.
+def forListReads (xs : List Nat) := infer_effects% do
+  for x in xs do
+    let step ← read
+    set (x + step)
+  get
+derive_parametric forListReads
 
 -- Early return from a list loop.
 def loopReturn (xs : List Nat) := infer_effects% do

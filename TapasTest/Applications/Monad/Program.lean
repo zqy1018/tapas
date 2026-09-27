@@ -113,6 +113,24 @@ def scopedReader := infer_effects% do
     pure (n + 2)
 derive_parametric scopedReader
 
+-- `withReader` and `read` reach `withTheReader` and `readThe` only through their instances.
+def scopedReaderView := infer_effects% do
+  withReader (· + 1) do
+    let n ← read
+    pure (n + 2)
+derive_parametric scopedReaderView
+
+-- Two environments read through `read` become two `MonadReaderOf` capabilities.
+def twoReaders := infer_effects% do
+  let label ← read
+  let n ← read
+  pure (String.length label + n)
+derive_parametric twoReaders
+
+example :
+    ({m : Type → Type} → [Monad m] → [MonadReaderOf String m] → [MonadReaderOf Nat m] → m Nat) :=
+  @twoReaders
+
 def lifted {base : Type u → Type w} {α : Type u} (x : base α) := infer_effects% do
   let a ← monadLift x
   pure a

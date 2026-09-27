@@ -130,17 +130,17 @@ error: parametricity: match discriminant depends on the representation or differ
 #guard_msgs in
 derive_parametric m13
 
--- M14: match on a structure value obtained from a reader.
+-- M14: match on a structure value obtained from a reader. The patterns name the constructor,
+-- which is what determines the type read.
 structure Cfg where
   flag : Bool
   size : Nat
 
 def m14 := infer_effects% do
-  -- `read` currently leaves an untranslated `readThe` wrapper during derivation.
-  let c ← readThe Cfg
+  let c ← read
   match c with
-  | ⟨true, s⟩ => set s; pure s
-  | ⟨false, _⟩ => get
+  | Cfg.mk true s => set s; pure s
+  | Cfg.mk false _ => get
 derive_parametric m14
 
 -- M15: List patterns.
@@ -150,6 +150,14 @@ def m15 (xs : List Nat) := infer_effects% do
   | [a] => set a; pure a
   | a :: b :: _ => set (a + b); get
 derive_parametric m15
+
+-- M16: the discriminant is already a constructor, so the match reduces away, and the branch
+-- taken reaches its operation only through an instance.
+def m16 := infer_effects% do
+  match true with
+  | true => read
+  | false => pure (Cfg.mk false 0)
+derive_parametric m16
 
 /-! ## Composed matches -/
 

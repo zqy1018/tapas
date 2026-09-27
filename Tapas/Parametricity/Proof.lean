@@ -213,7 +213,7 @@ private def localRules (ctx : ProofContext) : MetaM (Array Expr) := do
 /-- Expose the outer form of a relation endpoint so proof search can choose its next case.
 Simplify function applications and wrappers while retaining lets for sharing, branches
 for case splitting, and registered function names for applying their translation rules. -/
-private def normalizeHead (e : Expr) : MetaM Expr := do
+private partial def normalizeHead (e : Expr) : MetaM Expr := withIncRecDepth do
   let e := e.consumeMData.headBeta
   if e.isLet || (iteHead? e).isSome then return e
   if let some app ← matchMatcherApp? e (alsoCasesOn := true) then
@@ -221,7 +221,9 @@ private def normalizeHead (e : Expr) : MetaM Expr := do
     -- branch is taken, in which case it reduces away. Reducing unconditionally
     -- would unfold `casesOn` to `rec` and lose the branching step altogether.
     if ← app.discrs.allM (Meta.isConstructorApp ·) then
-      return ← whnfCore e
+      -- The branch taken is normalized in turn, as a head exposed by any other step is.
+      let e' ← whnfCore e
+      return ← if e' == e then pure e else normalizeHead e'
     return e
   -- A head with a registered translation is
   -- also left intact, so `proveApplication` can find that rule by name.
@@ -233,20 +235,31 @@ private def normalizeHead (e : Expr) : MetaM Expr := do
   -- wrappers such as `withTheReader`: a field applied only to original binders.
   -- For the wrappers, we unfold them.
   -- NOTE: This is more like a heuristic
-  let e ← if let some (name, levels) := fnName? then do
-      if let .defnInfo info ← getConstInfo name then
-        let forwards ← lambdaTelescope info.value fun xs body => do
-          let some field := body.getAppFn.constName? | return false
-          pure <| (← isProjectionFn field) && body.getAppArgs.all xs.contains
-        if forwards then
-          pure ((info.value.instantiateLevelParams info.levelParams levels).beta e.getAppArgs)
-        else pure e
-      else pure e
-    else pure e
+  if let some (name, levels) := fnName? then
+    if let .defnInfo info ← getConstInfo name then
+      let forwards ← lambdaTelescope info.value fun xs body => do
+        let some field := body.getAppFn.constName? | return false
+        pure <| (← isProjectionFn field) && body.getAppArgs.all xs.contains
+      if forwards then
+        return ← normalizeHead
+          ((info.value.instantiateLevelParams info.levelParams levels).beta e.getAppArgs)
   -- Exposing operations hidden by wrappers or instance projections while
   -- keeping bindings available to `proveLet`, which preserves sharing in the proof.
-  withTransparency .instances <| withConfig (fun c => { c with zeta := false, zetaDelta := false }) <|
-    whnf e
+  -- The reduction is `whnf` taken one step at a time, so that the checks above apply to
+  -- every head it passes through, not only the first: `read` reduces through its
+  -- instance to the forwarding wrapper `readThe`, and a reducible head may have a
+  -- registered translation that a single `whnf` would unfold past.
+  let step? : MetaM (Option Expr) :=
+    withTransparency .instances <|
+      withConfig (fun c => { c with zeta := false, zetaDelta := false }) do
+        let e' ← whnfCore e
+        if e' != e then return some e'
+        if let some v ← reduceNat? e then return some v
+        if let some v ← reduceNative? e then return some v
+        unfoldDefinition? e
+  match ← step? with
+  | some e' => normalizeHead e'
+  | none => return e
 
 /-- Recognize conditionals or matches that branch on definitionally equal,
 representation-independent discriminants. Return `false` for unrecognized pairs;
