@@ -10,10 +10,10 @@ namespace TapasTest.Applications.Monad.PartialEffectInference
 def advance (stop : Nat) := infer_effects_partial% do
   let bound ← read
   while (← getThe Nat) < bound do
-    let n ← getThe Nat
+    let n ← get
     set (n + 1)
     if n + 1 == stop then return n + 1
-  getThe Nat
+  get
 
 derive_parametric advance
 
@@ -55,7 +55,7 @@ example {α : Type u} {m : Type u → Type v} [Monad m] (a : α) :
     pureProgram (m := m) a = pure a := rfl
 
 def tick := infer_effects_partial% do
-  let n ← getThe Nat
+  let n ← get
   set (n + 1)
   pure n
 
@@ -127,7 +127,7 @@ theorem caller_related (stop : Nat) : R (caller (m := Source) stop) (caller (m :
 #guard nested (m := Option) 4 == some 4
 #guard repeatUntil (m := Option) 0 == some 1
 #guard repeatUntil (m := Option) 4 == some 4
-#guard (pureProgram (m := Id) (7 : Nat)).run == 7
+#guard (pureProgram (m := Id) 7).run == 7
 #guard (tick (m := StateM Nat) 4).run == (4, 5)
 
 -- The new entry point selects the least-fixpoint loop, does not fall back to a standard one

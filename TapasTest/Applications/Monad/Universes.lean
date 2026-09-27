@@ -32,7 +32,7 @@ def recoverOrThrow {ε : Type u} {α : Type v}
     (error : ε) (fallback : α) (fail : Bool) :=
   infer_effects% do
     if fail then
-      throwThe ε error
+      throw error
     else
       pure fallback
 
@@ -46,7 +46,7 @@ def stateThreeTimes {σ : Type u} :=
   infer_effects% do
     let first ← stateRoundTrip (σ := σ)
     let second ← stateRoundTrip (σ := σ)
-    let third ← getThe σ
+    let third ← get
     set first
     set second
     set third

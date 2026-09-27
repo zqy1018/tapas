@@ -82,7 +82,7 @@ def stateHandler : (α : Type) → StateOp α → StateM Nat α
   | _, .set value => set value
 
 example (amount : Nat) : add amount stateHandler =
-    (do let old ← get; set (old + amount); pure old : StateM Nat Nat) := rfl
+    (do let old ← get; set (old + amount); pure old) := rfl
 
 example (amount : Nat) : withdraw amount stateHandler =
     (do
@@ -91,7 +91,7 @@ example (amount : Nat) : withdraw amount stateHandler =
         set (balance - amount)
         pure true
       else
-        pure false : StateM Nat Bool) := rfl
+        pure false) := rfl
 
 -- Reification produces the expected requests, including the read-dependent write.
 example (amount : Nat) : toFreer (add amount) =

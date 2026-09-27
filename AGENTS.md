@@ -18,6 +18,7 @@
 - Test cases should be readable and focusing on the things to test. It is discouraged to write a bunch of meta programs in test cases. 
 - Use utilities from `TapasTest/TestingUtils.lean` properly. 
 - When writing test cases, ensure that the most common cases are covered. **DO NOT** attempt to work around a failing common case by replacing it with something different. Instead, when such thing happens, report it, as that can indicate problems in the implementation.
+- When writing test cases, write them in the most normal way; for example, avoid excessive type annotations. 
 
 ## Writing Documentations (Including Comment Blocks)
 

@@ -47,7 +47,7 @@ example {m : Type u → Type v} {n : Type u → Type w}
       fail_if_success guard_target =ₛ IndexedRelation m n
       exact fun {_} _ _ => True) := by constructor <;> intros <;> trivial
 
-def monadic := infer_effects% pure (1 : Nat)
+def monadic := infer_effects% pure 1
 derive_parametric monadic
 
 example {m n : Type → Type} [lm : Monad m] [rn : Monad n]

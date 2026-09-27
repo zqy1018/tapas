@@ -166,7 +166,7 @@ example :
 /- Local reader adaptation and reading are two separate capabilities. -/
 def locallyRead :=
   infer_effects%
-    withTheReader String (fun s => s ++ "!") do
+    withReader (fun s => s ++ "!") do
       readThe String
 
 example :
@@ -270,7 +270,7 @@ example :
 /- Requirements already derivable from `Monad m` do not enter the set. -/
 def liftFromIdNeedsNoExtraCapability :=
   infer_effects% do
-    let n ← liftM (m := Id) (41 : Id Nat)
+    let n ← liftM (m := Id) 41
     pure (n + 1)
 
 example :
@@ -291,7 +291,7 @@ def validatedAudit :=
     let rawLabel ← readLabel
     let label ← requireNonempty rawLabel
     let before ← stateOnly
-    let current ← getThe Nat
+    let current ← get
     let emittedLength ← emitLength label
     let adapted ← locallyRead
     set (current + emittedLength)
@@ -320,7 +320,7 @@ def auditPipeline :=
     let twice ← stateTwice
     let branchValue ← branchEffects true
     let second ← validatedAudit
-    let current ← getThe Nat
+    let current ← get
     set (current + branchValue)
     emit first.label
     let checked ← requireNonempty second.label
@@ -369,8 +369,8 @@ deriving Repr, DecidableEq
 def dualStateRound :=
   infer_effects% do
     let (initialNat, initialFlag) ← twoStates
-    let observedNat ← getThe Nat
-    let observedFlag ← getThe Bool
+    let observedNat ← get
+    let observedFlag ← get
     set (observedNat + 10)
     set (!observedFlag)
     let label ← readLabel
@@ -406,8 +406,8 @@ def dualStateScenario :=
     let adapted ← locallyRead
     let checked ← requireNonempty adapted
     emit checked
-    let currentNat ← getThe Nat
-    let finalFlag ← getThe Bool
+    let currentNat ← get
+    let finalFlag ← get
     set (currentNat + checked.length)
     pure ({
       firstInitial := first.initialNat
@@ -453,11 +453,11 @@ deriving Repr, DecidableEq
 /- Eight binds/statements; failure in the first lift short-circuits the rest. -/
 def liftedScenario (source : Except String Nat) :=
   infer_effects% do
-    let payload ← liftM (m := Except String) source
+    let payload ← liftM source
     let rawLabel ← readLabel
     let _label ← requireNonempty rawLabel
     let before ← stateOnly
-    let current ← getThe Nat
+    let current ← get
     let adapted ← locallyRead
     emit adapted
     set (current + payload + adapted.length)
@@ -495,7 +495,7 @@ def liftedBatch :=
     let rawLabel ← readLabel
     let label ← requireNonempty rawLabel
     let emittedLength ← emitLength label
-    let current ← getThe Nat
+    let current ← get
     set (current + emittedLength)
     emit first.adapted
     pure (first.before + second.before + current + emittedLength)

@@ -98,7 +98,7 @@ derive_parametric handler
 
 def tiedError {m : Type → Type v} [Monad m]
     [MonadExceptOf (ULift.{v} Unit) m] : m Nat :=
-  throwThe (ULift.{v} Unit) ⟨()⟩
+  throw ⟨()⟩
 derive_parametric tiedError
 
 example {m n : Type → Type v} [Monad m] [Monad n]
@@ -144,7 +144,7 @@ infer_effects
 def functionArgument (x : m Nat) (f : Nat → m Nat) : m Nat := x >>= f
 derive_parametric functionArgument
 
-@[expose] def unknownHelper := infer_effects% pure (37 : Nat)
+@[expose] def unknownHelper := infer_effects% pure 37
 @[expose] def usesUnknown := infer_effects% unknownHelper
 /-- error: parametricity: no applicable translation for TapasTest.Applications.Monad.Program.unknownHelper; use `derive_parametric TapasTest.Applications.Monad.Program.unknownHelper` or `attribute [parametric] theoremName` -/
 #guard_msgs in

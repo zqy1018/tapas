@@ -128,11 +128,11 @@ example : ¬ MonadReaderOf.Rel (left := firstReader) (right := secondReader)
     (fun {_} x y => x = y) := by
   intro h
   have bad := h.read
-  change (1 : Nat) = 2 at bad
+  change 1 = 2 at bad
   cases bad
 
 /- A concrete graph relation exercises the complete Monad builder. -/
-theorem idToOption : Monad.Rel (fun {α} (x : Id α) (y : Option α) => some x.run = y) := by
+theorem idToOption : Monad.Rel (fun {α} (x : Id α) y => some x.run = y) := by
   apply Monad.Rel.ofPureBind
   · intro α a
     rfl
@@ -148,10 +148,10 @@ example {α β : Type} (f : Id (α → β)) (x : Unit → Id α) :
 abbrev dropsMapConst : Monad Option :=
   { (inferInstance : Monad Option) with mapConst := fun _ _ => none }
 
-example : ¬ Monad.Rel (right := dropsMapConst) (fun {α : Type} (x y : Option α) => x = y) := by
+example : ¬ Monad.Rel (right := dropsMapConst) (fun {_ : Type} x y => x = y) := by
   intro h
   have bad := h.mapConst (α := Unit) (β := Unit) () (some ()) (some ()) rfl
-  change some () = (none : Option Unit) at bad
+  change some () = none at bad
   cases bad
 
 class FixedReader (m : Type → Type) where

@@ -362,7 +362,7 @@ error: parametricity: no applicable translation for Nat.rec; use `derive_paramet
 derive_parametric viaRec
 
 /- A failure in one function of a `mutual` block rolls back the theorems of the whole block. -/
-def unregistered := infer_effects% pure (1 : Nat)
+def unregistered := infer_effects% pure 1
 
 infer_effects
 mutual

@@ -28,7 +28,7 @@ instance {σ : Type u} : MonadStateOf σ (Freer (StateOp σ)) where
 
 def stateHandler {σ : Type u} {m : Type u → Type w} [MonadStateOf σ m] :
     (α : Type u) → StateOp σ α → m α
-  | _, .get => getThe σ
+  | _, .get => get
   | _, .set s => set s
   | _, .modifyGet f => MonadStateOf.modifyGet f
 

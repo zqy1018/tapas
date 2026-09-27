@@ -88,7 +88,7 @@ instance : Arithmetic Nat where
   literal n := n
   add := Nat.add
 
-abbrev sumCompatible : Arithmetic.Rel (fun (xs : List Nat) (n : Nat) => xs.sum = n) where
+abbrev sumCompatible : Arithmetic.Rel (fun (xs : List Nat) n => xs.sum = n) where
   literal _ := rfl
   add xs x hx ys y hy := by
     change (xs ++ ys).sum = x + y

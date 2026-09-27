@@ -114,7 +114,7 @@ theorem diverges (s : Nat) (hs : s ≠ 0) : loop sourceStep s 0 = none := by
       apply admissible_pi
       intro hs
       exact admissible_apply (fun _ (f : Source Nat) => f 0 = none) s
-        (admissible_apply (fun _ (x : Option Nat) => x = none) 0
+        (admissible_apply (fun _ x => x = none) 0
           (admissible_flatOrder _ rfl))
     · intro recur ih s hs
       simpa [sourceStep, hs, bind, ReaderT.bind, pure, ReaderT.pure] using ih s hs
@@ -160,7 +160,7 @@ theorem successful_not_admissible : ¬ AdmissibleRel (Successful (α := Nat)) :=
 -- Even when the functionals preserve Successful, their least fixpoints are not related.
 theorem successful_not_preserved_by_fix :
     (∀ x y : Option Nat, Successful x y → Successful (id x) (id y)) ∧
-      ¬ Successful (fix id monotone_id : Option Nat) (fix id monotone_id : Option Nat) := by
+      ¬ Successful (fix id monotone_id : Option Nat) (fix id monotone_id) := by
   refine ⟨fun _ _ h => h, ?_⟩
   have hfix : (fix id monotone_id : Option Nat) = none := by
     apply fix_induct monotone_id (fun x => x = none)
@@ -213,7 +213,7 @@ def accumulate {α : Type u}
   match ← step k with
   | none => pure acc
   | some a =>
-    let next : m (List α) := pure (a :: acc)
+    let next := pure (a :: acc)
     let xs ← next
     accumulate (k + 1) step xs
 partial_fixpoint

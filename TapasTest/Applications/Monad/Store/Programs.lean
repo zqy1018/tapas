@@ -107,7 +107,7 @@ theorem redundant_write_related : R (pure 7) redundantWrite := by
     split <;> simp_all
 
 example : (pure 7 : Target Nat) [] ≠ redundantWrite [] := by
-  change (7, ([] : Journal)) ≠ (7, [("scratch", 0)])
+  change (7, []) ≠ (7, [("scratch", 0)])
   decide
 example : R (pure 7) (pure 7) := pure_rel 7
 

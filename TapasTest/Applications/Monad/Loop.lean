@@ -106,7 +106,7 @@ theorem source_diverges (initial : Nat) : countUntil sourceCondition initial 0 =
     apply PartialLoop.loop.fixpoint_induct (m := Source) (body := countBody sourceCondition)
       (motive := fun recur => ∀ n, recur n 0 = none)
     · exact admissible_pi_apply (fun _ (f : Source Nat) => f 0 = none) (fun _ =>
-        admissible_apply (fun _ (x : Option Nat) => x = none) 0
+        admissible_apply (fun _ x => x = none) 0
           (admissible_flatOrder _ rfl))
     · intro recur ih n
       simpa [countBody, sourceCondition, bind, ReaderT.bind, pure, ReaderT.pure] using ih (n + 1)
@@ -123,7 +123,7 @@ theorem target_diverges (initial : Nat) (flag : Bool) :
 #guard control 10 (some false) == some 9
 #guard control 10 (some true) == some 101
 #guard control 0 (some true) == some 0
-#guard control 10 (none : Option Bool) == none
+#guard control 10 none == none
 
 -- A standard loop is given no least-fixpoint certificate, and the partial loop instance
 -- does not leak into one.

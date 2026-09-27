@@ -71,7 +71,7 @@ A : Type
 ⊢ Nat
 -/
 #guard_msgs in
-def hole := infer_final% (A : Type) => Literal.lit (A := A) (_ : Nat)
+def hole := infer_final% (A : Type) => Literal.lit (A := A) _
 
 class Choose (σ : Type) (A : Type) where
   choose : A
@@ -131,7 +131,7 @@ example : callsLeaves (A := Nat) = 10 := rfl
 
 /- Selecting a parameter prescribes neither the result type nor that the body use
 the parameter at all. -/
-def concrete := infer_final% (A : Type) => (1 : Nat)
+def concrete := infer_final% (A : Type) => 1
 
 example : {_ : Type} → Nat := @concrete
 

@@ -84,7 +84,7 @@ def m9 (x : Option (Option Nat)) := infer_effects% do
   match x with
   | none => pure 0
   | some y =>
-    let z : Nat ← get
+    let z ← get
     match y, z with
     | none, _ => pure z
     | some k, 0 => set k; pure k

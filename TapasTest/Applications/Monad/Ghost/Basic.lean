@@ -55,7 +55,7 @@ variable [LawfulMonad m]
 theorem Erase.pure_rel {α : Type u} (a : α) :
     Erase σ m (pure a) (pure a) := by
   intro s
-  show Prod.fst <$> (pure (a, s) : m _) = pure a
+  show Prod.fst <$> pure (a, s) = pure a
   rw [map_pure]
 
 theorem Erase.bind_rel {α β : Type u} {x : StateT σ m α} {y : m α}
@@ -76,7 +76,7 @@ theorem Erase.ghostRel {I : Type u} [GhostUpdateStep I σ] :
   MonadGhostOf.Rel.mk _
     (ghost := fun i => by
       intro s
-      show Prod.fst <$> (pure (PUnit.unit, GhostUpdateStep.step i s) : m _) = pure PUnit.unit
+      show Prod.fst <$> pure (PUnit.unit, GhostUpdateStep.step i s) = pure PUnit.unit
       rw [map_pure])
 
 omit [LawfulMonad m] in
@@ -107,7 +107,7 @@ variable [LawfulMonad m]
 theorem Reindex.pure_rel {α : Type u} (a : α) :
     Reindex shift m (pure a) (pure a) := by
   intro s
-  show (fun p => (p.1, shift p.2)) <$> (pure (a, s) : m _) = pure (a, shift s)
+  show (fun p => (p.1, shift p.2)) <$> pure (a, s) = pure (a, shift s)
   rw [map_pure]
 
 theorem Reindex.bind_rel {α β : Type u} {x : StateT σ m α} {y : StateT τ m α}
@@ -131,7 +131,7 @@ theorem Reindex.ghostRel {I : Type u}
   MonadGhostOf.Rel.mk _
     (ghost := fun i => by
       intro s
-      show (fun p => (p.1, shift p.2)) <$> (pure (PUnit.unit, leftStep.step i s) : m _)
+      show (fun p => (p.1, shift p.2)) <$> pure (PUnit.unit, leftStep.step i s)
           = pure (PUnit.unit, rightStep.step i (shift s))
       rw [map_pure, hstep])
 

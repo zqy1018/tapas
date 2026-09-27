@@ -102,7 +102,7 @@ instance : Arith String := ⟨toString, fun x y => s!"({x} + {y})"⟩
   | .lit n => n
   | .add x y => evaluate x + evaluate y
 
-abbrev evaluationRelation : Arith.Rel (fun (x : Syntax) (y : Nat) => evaluate x = y) where
+abbrev evaluationRelation : Arith.Rel (fun x y => evaluate x = y) where
   lit _ := rfl
   add _ _ hx _ _ hy := by cases hx; cases hy; rfl
 
@@ -231,7 +231,7 @@ example {A : Type u} {B : Type v} (R : A → B → Prop)
 
 -- An independent result is interpreted by equality; no representation-headed
 -- result is required at the proof boundary either.
-def constant := infer_final% (A : Type u) => (7 : Nat)
+def constant := infer_final% (A : Type u) => 7
 derive_parametric constant (repr := A)
 
 -- An interface need not be a typeclass. A record of operations lets two
