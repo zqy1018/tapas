@@ -131,6 +131,38 @@ example :
     ({m : Type → Type} → [Monad m] → [MonadReaderOf String m] → [MonadReaderOf Nat m] → m Nat) :=
   @twoReaders
 
+-- `modify`, `getModify` and `MonadExcept.orElse` read a field of their own dictionary, but pass
+-- it a term built from their binders rather than the binders themselves.
+def bump := infer_effects% do
+  modify (· + 1)
+  getModify (· * 2)
+derive_parametric bump
+
+def fallback := infer_effects% MonadExcept.orElse (throw "boom") (fun _ => pure 3)
+derive_parametric fallback
+
+-- A wrapper of the same shape defined here is unfolded as well, unless it is `@[irreducible]`.
+def ownBump [MonadStateOf Nat m] : m PUnit :=
+  MonadStateOf.modifyGet fun s => (PUnit.unit, s + 1)
+def usesOwnBump := infer_effects% ownBump
+derive_parametric usesOwnBump
+#guard_uses usesOwnBump.parametric ⊇ [MonadStateOf.Rel.modifyGet]
+
+-- Once the wrapper has a translation of its own, callers apply it instead of unfolding the
+-- wrapper at every use.
+derive_parametric ownBump
+def usesOwnBumpTwice := infer_effects% do ownBump; ownBump
+derive_parametric usesOwnBumpTwice
+#guard_uses usesOwnBumpTwice.parametric ⊇ [ownBump.parametric]
+#guard_uses usesOwnBumpTwice.parametric ∩ [MonadStateOf.Rel.modifyGet] = ∅
+
+@[irreducible] def opaqueBump [MonadStateOf Nat m] : m PUnit :=
+  MonadStateOf.modifyGet fun s => (PUnit.unit, s + 1)
+def usesOpaqueBump := infer_effects% opaqueBump
+/-- error: parametricity: no applicable translation for TapasTest.Applications.Monad.Program.opaqueBump; use `derive_parametric TapasTest.Applications.Monad.Program.opaqueBump` or `attribute [parametric] theoremName` -/
+#guard_msgs in
+derive_parametric usesOpaqueBump
+
 def lifted {base : Type u → Type w} {α : Type u} (x : base α) := infer_effects% do
   let a ← monadLift x
   pure a

@@ -22,7 +22,7 @@ derive_parametric greet          -- defaults to the first implicit parameter, he
 ```
 
 `Monad.Rel` and the relations of some common Lean's capability classes are generated already, so a
-body using `do`, `get`, `throw`, a lift or a `for` loop over a list or a range needs nothing
+body using `read`, `get`, `throw`, a lift or a `for` loop over a list or a range needs nothing
 further. For `while` and `repeat`, see [Choosing loop semantics](#choosing-loop-semantics).
 
 A recursive program is not one term, so it uses the command form instead:

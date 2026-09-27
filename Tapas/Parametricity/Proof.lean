@@ -231,16 +231,31 @@ private partial def normalizeHead (e : Expr) : MetaM Expr := withIncRecDepth do
   let fnName? := fn.const?
   if let some (name, _) := fnName? then
     unless (getParametricRules (← getEnv) name).isEmpty do return e
-  -- Ordinary definitions are opaque to proof search, except exact forwarding
-  -- wrappers such as `withTheReader`: a field applied only to original binders.
-  -- For the wrappers, we unfold them.
+  -- Ordinary definitions are opaque to proof search, except shallow wrappers: a field
+  -- read from a dictionary the definition itself receives. `withTheReader` forwards only
+  -- its binders; `modify f := modifyGet fun s => ((), f s)` also passes a term built
+  -- from them. For the wrappers, we unfold them, unless marked `@[irreducible]`.
   -- NOTE: This is more like a heuristic
   if let some (name, levels) := fnName? then
     if let .defnInfo info ← getConstInfo name then
       let forwards ← lambdaTelescope info.value fun xs body => do
         let some field := body.getAppFn.constName? | return false
-        pure <| (← isProjectionFn field) && body.getAppArgs.all xs.contains
-      if forwards then
+        let some proj ← getProjectionFnInfo? field | return false
+        let args := body.getAppArgs
+        pure <|
+          -- exact forwarding
+          args.all xs.contains ||
+          -- A projection takes the structure's parameters, then the dictionary it reads the
+          -- field from, then the field's own arguments. Requiring that dictionary to be a
+          -- binder keeps the heuristic to aliases of one operation of a dictionary the caller
+          -- supplies: after unfolding, the field is read from whatever the call site passes,
+          -- an interface dictionary or an instance built from one, which is what the
+          -- interface relations cover. A definition reading from any other dictionary, such
+          -- as `pure 37` through `instMonad.toApplicative.toPure`, is a program in its own
+          -- right. It stays opaque, to be derived once and reused rather than inlined at
+          -- every use.
+          args[proj.numParams]?.any xs.contains
+      if forwards && (← getReducibilityStatus name) != .irreducible then
         return ← normalizeHead
           ((info.value.instantiateLevelParams info.levelParams levels).beta e.getAppArgs)
   -- Exposing operations hidden by wrappers or instance projections while
