@@ -57,20 +57,25 @@ parametricity certificate. There is no unconditional equality of arbitrary raw
 
 ## Extraction as an instantiation ([Extraction.lean](Extraction.lean))
 
-Instantiating a program at `Symbolic n` reifies its advice and base-state operations;
-instantiating it at `Exec n` executes them. Both use the same definition written
-with `infer_effects%`.
+A program chooses an amount by asking `MonadChoice` for a value of the type
+`{x : Nat // x ≤ balance}`. Instantiating it at `Symbolic n` reifies its choices and
+base-state operations; instantiating it at `Exec n` executes them. Both use the same
+definition written with `infer_effects%`, whose inferred signature records the types
+the program chooses from.
 
 - **Verify from specifications:** `spend_spec` and `spendRounds_spec` prove that
   the remaining balance plus the amount spent equals the initial balance. The
-  proof covers every suggestion allowed by `adviceSpec`, without choosing an advisor.
-- **Connect the executions:** `spend_extracted` and `spendRounds_extracted` use
-  parametricity to prove that interpreting the reified requests equals executing
-  the original program, for any lawful base monad and any advisor interpretation.
-- **Transfer correctness:** `spend_correct` and `spendRounds_correct` combine that
-  equality with `interpret_sound`. Each advisor only needs a `Sound` proof that its
-  operations satisfy their specifications; `half_sound` and `greedy_sound` provide
-  two examples that reuse the same program proofs.
+  proof covers every amount the type of a choice allows, without choosing an advisor.
+- **Relate the instantiations:** `Refines` relates a symbolic computation to an
+  execution that establishes every postcondition the symbolic one establishes.
+  `refines_monad` and `refines_state` show that the monad and state operations
+  preserve it, for any lawful base monad. The reified program is never interpreted:
+  an interpretation would have to answer a request for every type, including types
+  without values.
+- **Transfer correctness:** `spend_correct` and `spendRounds_correct` compose each
+  verification with the parametricity theorem of the program, applied to `Refines`.
+  An advisor only needs its choices to be related; `refines_pure` relates any advisor
+  answering with `pure`, so the half and greedy advisors reuse the same program proofs.
 
-The WP examples use `Id` as the base monad and bounded loops; the extraction
-equalities hold for arbitrary lawful base monads.
+The WP examples use `Id` as the base monad and bounded loops; `refines_monad` and
+`refines_state` hold for arbitrary lawful base monads.
