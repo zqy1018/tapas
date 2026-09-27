@@ -367,7 +367,8 @@ partial def refineConstraints (isInterface : Expr → Bool) (selected : MessageD
             -- Tolerant elaboration has emptied the pending queue. Open the
             -- remaining goal's telescope and retry in an isolated queue, using
             -- Lean's default instances as well as ordinary instance search.
-            let goal ← mkFreshExprMVar type .syntheticOpaque
+            -- Instance synthesis assigns its result through unification.
+            let goal ← mkFreshExprMVar type .synthetic
             registerSyntheticMVarWithCurrRef goal.mvarId! (.typeClass none)
             synthesizeSyntheticMVarsUsingDefault
             unless ← goal.mvarId!.isAssigned do failure

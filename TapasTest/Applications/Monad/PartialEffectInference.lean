@@ -9,7 +9,7 @@ namespace TapasTest.Applications.Monad.PartialEffectInference
 -- No explicit monad, capability, order parameters, or open-scoped command.
 def advance (stop : Nat) := infer_effects_partial% do
   let bound ← read
-  while (← getThe Nat) < bound do
+  while (← get) < bound do
     let n ← get
     set (n + 1)
     if n + 1 == stop then return n + 1
