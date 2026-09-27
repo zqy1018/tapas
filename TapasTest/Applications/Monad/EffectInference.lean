@@ -50,6 +50,43 @@ example : requireNonempty "" (m := Except String) =
 example : requireNonempty "ok" (m := Except String) =
     Except.ok "ok" := rfl
 
+/- The first subtraction is stuck until effect refinement determines the state
+type from later operations. Retrying it also determines the reader type. -/
+infer_effects
+def withdraw (amount : Nat) : m Unit := do
+  let fee ← read
+  modify (· - fee)
+  if (← get) < amount then throw "insufficient funds"
+  modify (· - amount)
+
+example :
+    ({m : Type → Type} → [Monad m] → [MonadReaderOf Nat m] →
+      [MonadStateOf Nat m] → [MonadExceptOf String m] → Nat → m Unit) :=
+  @withdraw
+
+abbrev Account := ReaderT Nat (ExceptT String (StateT Nat Id))
+
+example : Id.run (StateT.run
+    (ExceptT.run (ReaderT.run (withdraw (m := Account) 5) 2)) 10) =
+    (Except.ok (), 3) := rfl
+
+example : Id.run (StateT.run
+    (ExceptT.run (ReaderT.run (withdraw (m := Account) 9) 2)) 10) =
+    (Except.error "insufficient funds", 8) := rfl
+
+/- The term frontend uses the same refinement, including defaults at types other
+than `Nat`. -/
+def withdrawInt (amount : Int) := infer_effects% do
+  let fee ← read
+  modify (· - fee)
+  if (← get) < amount then throw "insufficient funds"
+  modify (· - amount)
+
+example :
+    ((amount : Int) → {m : Type → Type} → [Monad m] → [MonadReaderOf Int m] →
+      [MonadStateOf Int m] → [MonadExceptOf String m] → m Unit) :=
+  @withdrawInt
+
 /- Distinct state types remain distinct effects, while each is deduplicated. Two
 plain `get`s are enough: each one is normalized to the `MonadStateOf` it is derived
 from, which is a capability a two-state stack can still discharge. -/

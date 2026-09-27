@@ -126,6 +126,10 @@ in the order listed.
    metavariable with an expression built from the retained ones.
 5. Check the elaborated terms, their types, and the retained constraint types for
    unresolved expression metavariables other than the selected ones.
+   Retry remaining non-selected class goals using Lean's ordinary and default
+   instances. When any succeeds, simplify the retained constraints' telescopes
+   again and repeat steps 3–5; refinement may have fixed types that previously
+   blocked instance synthesis.
    `throwUnresolved` reports whatever is left at the operation it came from,
    rather than at the frontend's token.
 6. `inferInterfaceBody` abstracts the retained constraints as instance-implicit
@@ -339,10 +343,10 @@ expression metavariables other than the retained constraints and the ones `ignor
 Passing several at once is what gives the definitions of a `mutual` block one shared set of
 parameters; `ignored` is how a caller excludes a placeholder it resolves itself, such as the one
 standing for a `let rec` function until it is lifted. -/
-def refineConstraints (isInterface : Expr → Bool) (selected : MessageData)
+partial def refineConstraints (isInterface : Expr → Bool) (selected : MessageData)
     (args : Array AbstractTCArg) (exprs : Array Expr)
     (ignored : MVarId → TermElabM Bool := fun _ => return false) :
-    TermElabM (Array AbstractTCArg) := do
+    TermElabM (Array AbstractTCArg) := withIncRecDepth do
   let args ← args.flatMapM (normalizeConstraint isInterface)
   let args ← deduplicateConstraints args
   let args ← minimizeConstraints args
@@ -351,7 +355,32 @@ def refineConstraints (isInterface : Expr → Bool) (selected : MessageData)
   let unresolvedArgs ← args.flatMapM fun arg => do getMVars (← instantiateMVars (← inferType arg.mvar))
   let bad ← (unresolved ++ unresolvedArgs).toList.filterM
     fun id => return !interfaceMVars.contains (.mvar id) && !(← ignored id)
-  unless bad.isEmpty do throwUnresolved selected args bad.eraseDups.toArray
+  let bad := bad.eraseDups.toArray
+  let mut progress := false
+  for id in bad do
+    unless ← id.isAssigned do
+      let solved? ← id.withContext do
+        forallTelescopeReducing (← id.getType) fun xs type => do
+          let type ← instantiateMVars type
+          unless (← isClass? type).isSome && !isInterface type do return none
+          observing? <| withTolerantElaboration <| withSynthesizeLight do
+            -- Tolerant elaboration has emptied the pending queue. Open the
+            -- remaining goal's telescope and retry in an isolated queue, using
+            -- Lean's default instances as well as ordinary instance search.
+            let goal ← mkFreshExprMVar type .syntheticOpaque
+            registerSyntheticMVarWithCurrRef goal.mvarId! (.typeClass none)
+            synthesizeSyntheticMVarsUsingDefault
+            unless ← goal.mvarId!.isAssigned do failure
+            id.assign (← mkLambdaFVars xs (← instantiateMVars goal))
+      if solved?.isSome then progress := true
+  if progress then
+    -- New type assignments can remove dependencies on local variables, e.g.
+    -- `(amount : Nat) → MonadReader (?ρ amount) m` once `?ρ := fun _ => Nat`.
+    let args ← args.filterMapM fun arg => do
+      simplifyAndAbstractMVar arg.mvar (← arg.mvar.mvarId!.getDecl).userName
+        (cfg := { simplifyType := true })
+    return ← refineConstraints isInterface selected args exprs ignored
+  unless bad.isEmpty do throwUnresolved selected args bad
   return args
 
 /-- Elaborate `body` and abstract the missing instance arguments that `select`
