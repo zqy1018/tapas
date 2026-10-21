@@ -13,6 +13,10 @@ A minimal experiment in converting between freer and tagless-final representatio
   executing the resulting program preserves the original program's behavior.
 - [Extraction.lean](Extraction.lean): verify a program at an instantiation that reifies its
   uninterpreted operations, and transfer the result to the instantiation that executes them.
+- [Signature.lean](Signature.lean): sums of signatures, handlers of sums from handlers of the
+  summands, injections of a signature into a sum found by instance search, renaming of request
+  trees along a translation of requests, and capabilities and their relations for a sum from
+  those for its summands and back. `FreerT` is the sum of a signature and a monad.
 
 ## Key theorems in [Basic.lean](Basic.lean)
 

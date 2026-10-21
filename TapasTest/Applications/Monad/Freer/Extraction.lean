@@ -1,6 +1,7 @@
 module
 
 import TapasTest.Applications.Monad.Freer.WP
+import TapasTest.Applications.Monad.Freer.Signature
 import Std.Tactic.Do
 
 /-!
@@ -19,17 +20,16 @@ does tell, and an execution only has to answer those types.
 namespace TapasTest.Applications.Monad.Freer.Extraction
 
 open Std.Do Tapas.Parametricity Tapas.LogicalRelation
-open TapasTest.Applications.Monad.Freer.Basic
+open TapasTest.Applications.Monad.Freer.Basic TapasTest.Applications.Monad.Freer.Signature
 open TapasTest.Applications.Monad.Freer.WP (wpMonad)
 
 universe u v w
 
-/-- Uninterpreted operations of `E`, interleaved with computations of `m`. -/
-abbrev FreerT (E : Type u → Type v) (m : Type u → Type w) :=
-  Freer (fun β => PSum (E β) (m β))
-
-instance {E : Type u → Type v} {m : Type u → Type w} : MonadLift m (FreerT E m) where
-  monadLift x := .impure (.inr x) .pure
+-- The lift of a computation of `m` is the `MonadLift` instance for the right summand of
+-- `Signature.lean`.
+/-- Uninterpreted operations of `E`, interleaved with computations of `m`: the sum of `E` and
+`m` as signatures. -/
+abbrev FreerT (E : Type u → Type v) (m : Type u → Type w) := Freer (Sig.sum E m)
 
 /-! ## Choosing a value of a type -/
 
