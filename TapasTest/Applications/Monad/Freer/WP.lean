@@ -71,9 +71,9 @@ theorem sample_spec (bound : Nat) :
   exact hv
 
 /-- Request two bounded inputs and return their sum. -/
-def sumInputs (bound : Nat) : Final.{0, 0, w} InputOp Nat := fun {_} _ h => do
-  let first ← h _ (.sample bound)
-  let second ← h _ (.sample bound)
+def sumInputs (bound : Nat) : Final.{0, 0, w} InputOp Nat := fun {_} _ _ => do
+  let first ← liftM (InputOp.sample bound)
+  let second ← liftM (InputOp.sample bound)
   pure (first + second)
 
 derive_parametric sumInputs (repr := m)
@@ -81,27 +81,32 @@ derive_parametric sumInputs (repr := m)
 -- No executable handler has been selected here: mvcgen uses the request specification.
 set_option mvcgen.warning false in
 theorem sumInputs_spec (bound : Nat) :
-    ⦃⌜True⌝⦄ toFreer (sumInputs bound) ⦃⇓ total => ⌜total ≤ 2 * bound⌝⦄ := by
+    ⦃⌜True⌝⦄ toFreer (@sumInputs bound) ⦃⇓ total => ⌜total ≤ 2 * bound⌝⦄ := by
   mvcgen [toFreer, sumInputs]
   all_goals (mleave; omega)
 
--- The program proof transfers to any handler satisfying the operation specifications.
+-- The program proof transfers to any MonadLiftT implementation satisfying the operation specifications.
 -- Parametricity supplies the cross-universe roundtrip, from Freer in Type 1 to m.
 theorem sumInputs_correct (bound : Nat) {m : Type → Type w} [Monad m] [WPMonad m .pure]
-    (handler : (α : Type) → InputOp α → m α)
-    (hspec : ∀ α (op : InputOp α) Q, (inputSpec α op).apply Q ⊢ₛ wp⟦handler α op⟧ Q) :
-    ⦃⌜True⌝⦄ sumInputs bound handler ⦃⇓ total => ⌜total ≤ 2 * bound⌝⦄ := by
-  rw [← toFinal_toFreer_rel (sumInputs.{1} bound) (sumInputs.{w} bound)
-    (sumInputs.parametric bound) handler]
+    [MonadLiftT InputOp m]
+    (hspec : ∀ α (op : InputOp α) Q,
+      (inputSpec α op).apply Q ⊢ₛ wp⟦(monadLift op : m α)⟧ Q) :
+    ⦃⌜True⌝⦄ sumInputs bound (m := m) ⦃⇓ total => ⌜total ≤ 2 * bound⌝⦄ := by
+  rw [← toFinal_toFreer_rel (@sumInputs.{1} bound) (@sumInputs.{w} bound)
+    (sumInputs.parametric bound)]
   exact SPred.entails.trans (sumInputs_spec bound)
-    (fold_sound inputSpec handler hspec _ _)
+    (fold_sound inputSpec (fun _ => monadLift) hspec _ _)
 
 /-- Execute requests using a chosen answer for each bound. -/
-def runWith (choose : Nat → Nat) : (α : Type) → InputOp α → Id α
-  | _, .sample bound => choose bound
+@[instance_reducible] def runWith (choose : Nat → Nat) : MonadLift InputOp Id where
+  monadLift
+    | .sample bound => choose bound
 
 theorem runWith_sound (choose : Nat → Nat) (hchoose : ∀ bound, choose bound ≤ bound) :
-    ∀ α (op : InputOp α) Q, (inputSpec α op).apply Q ⊢ₛ wp⟦runWith choose α op⟧ Q := by
+    letI := runWith choose
+    ∀ α (op : InputOp α) Q,
+      (inputSpec α op).apply Q ⊢ₛ wp⟦(monadLift op : Id α)⟧ Q := by
+  letI := runWith choose
   intro α op Q
   cases op with
   | sample bound =>
@@ -111,21 +116,28 @@ theorem runWith_sound (choose : Nat → Nat) (hchoose : ∀ bound, choose bound 
 -- This is an execution property of the original Final program. Its proof reuses the
 -- syntax-level verification and handler soundness, without unfolding the program.
 theorem sumInputs_run_bound (choose : Nat → Nat) (hchoose : ∀ bound, choose bound ≤ bound)
-    (bound : Nat) : (sumInputs bound (runWith choose)).run ≤ 2 * bound :=
-  sumInputs_correct bound (runWith choose) (runWith_sound choose hchoose) True.intro
+    (bound : Nat) :
+    letI := runWith choose
+    (sumInputs bound (m := Id)).run ≤ 2 * bound := by
+  letI := runWith choose
+  exact sumInputs_correct bound (runWith_sound choose hchoose) True.intro
 
-example (bound : Nat) : (sumInputs bound (runWith (fun _ => 0))).run ≤ 2 * bound :=
+example (bound : Nat) :
+    letI := runWith (fun _ => 0)
+    (sumInputs bound (m := Id)).run ≤ 2 * bound :=
   sumInputs_run_bound _ (fun _ => Nat.zero_le _) bound
 
-example (bound : Nat) : (sumInputs bound (runWith id)).run ≤ 2 * bound :=
+example (bound : Nat) :
+    letI := runWith id
+    (sumInputs bound (m := Id)).run ≤ 2 * bound :=
   sumInputs_run_bound _ (fun _ => Nat.le_refl _) bound
 
-#guard (sumInputs 10 (runWith (fun _ => 0))).run == 0
-#guard (sumInputs 10 (runWith id)).run == 20
-#guard (sumInputs 0 (runWith id)).run == 0
+#guard (letI := runWith (fun _ => 0); (sumInputs 10 (m := Id)).run) == 0
+#guard (letI := runWith id; (sumInputs 10 (m := Id)).run) == 20
+#guard (letI := runWith id; (sumInputs 0 (m := Id)).run) == 0
 
 -- The specification allows nonzero answers: it cannot establish a zero-only result.
-example : ¬ (⦃⌜True⌝⦄ toFreer (sumInputs 1) ⦃⇓ total => ⌜total = 0⌝⦄) := by
+example : ¬ (⦃⌜True⌝⦄ toFreer (@sumInputs 1) ⦃⇓ total => ⌜total = 0⌝⦄) := by
   intro h
   have impossible := h True.intro 1 (Nat.le_refl 1) 1 (Nat.le_refl 1)
   cases impossible

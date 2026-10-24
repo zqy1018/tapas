@@ -29,13 +29,15 @@ A minimal experiment in converting between freer and tagless-final representatio
   This relation requires related results for any monad dictionaries and handlers
   that preserve a computation relation, including across computation universes.
 - `toFinal_toFreer_rel`:
-  `toFinal (toFreer p) h = q h`, assuming `Final.Rel p q` and a lawful target monad.
+  `toFinal (toFreer @p) (m := m) = q (m := m)`, assuming `Final.Rel @p @q`,
+  a lawful target monad, and a `MonadLiftT E m` instance.
   Here `p` and `q` can be two universe instances of the same program: reification
   uses the universe of `Freer E`, while execution may use a smaller universe.
 - `toFinal_toFreer`:
-  `toFinal (toFreer p) (m := m) = p (m := m)`, assuming `Final.Rel p p` and a lawful `m`.
-  This specializes `toFinal_toFreer_rel` to `q := p` and applies function extensionality
-  over handlers. Here `m` uses the same computation universe as `Freer E`.
+  `toFinal (toFreer @p) (m := m) = p (m := m)`, assuming `Final.Rel @p @p`,
+  a lawful `m`, and a `MonadLiftT E m` instance.
+  This specializes `toFinal_toFreer_rel` to `q := @p`. Here `m` uses the same
+  computation universe as `Freer E`.
 
 The tagless-final-to-freer direction is pointwise equality in lawful monads under an explicit
 parametricity certificate. There is no unconditional equality of arbitrary raw

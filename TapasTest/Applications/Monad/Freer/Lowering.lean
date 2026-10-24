@@ -52,26 +52,26 @@ def lower {α : Type} (tree : Freer HighOp α) : Freer LowOp α :=
 -- LawfulMonad does not assign meaning to readPair. The equality below is the
 -- operation-specific obligation needed to justify this lowering.
 theorem lower_correct {m : Type → Type w} [Monad m] [LawfulMonad m]
-    (source : (α : Type) → HighOp α → m α) (target : (α : Type) → LowOp α → m α)
-    (hpair : source _ .readPair = do
-      let first ← target _ .read
-      let second ← target _ .read
+    [MonadLiftT HighOp m] [MonadLiftT LowOp m]
+    (hpair : (monadLift HighOp.readPair : m (Nat × Nat)) = do
+      let first ← liftM LowOp.read
+      let second ← liftM LowOp.read
       pure (first, second))
     {α : Type} (tree : Freer HighOp α) :
-    Freer.fold target (lower tree) = Freer.fold source tree := by
-  apply fold_lower lowerOp source target ?_ tree
+    toFinal (lower tree) (m := m) = toFinal tree (m := m) := by
+  apply fold_lower lowerOp (fun _ => monadLift) (fun _ => monadLift) ?_ tree
   intro α op
   cases op
   exact hpair.symm
 
 -- Subtraction makes the order of the two returned values observable.
-def difference : Final.{0, 0, w} HighOp Nat := fun {_} _ h => do
-  let pair ← h _ .readPair
+def difference : Final.{0, 0, w} HighOp Nat := fun {_} _ _ => do
+  let pair ← liftM HighOp.readPair
   pure (pair.1 - pair.2)
 
 derive_parametric difference (repr := m)
 
-def compiledDifference : Freer LowOp Nat := lower (toFreer difference)
+def compiledDifference : Freer LowOp Nat := lower (toFreer @difference)
 
 -- The compiled artifact contains only low-level reads, in their original order.
 example : compiledDifference =
@@ -79,31 +79,34 @@ example : compiledDifference =
 
 /-- Executing the lowered tree agrees with executing the original final program. -/
 theorem difference_correct {m : Type → Type w} [Monad m] [LawfulMonad m]
-    (source : (α : Type) → HighOp α → m α) (target : (α : Type) → LowOp α → m α)
-    (hpair : source _ .readPair = do
-      let first ← target _ .read
-      let second ← target _ .read
+    [MonadLiftT HighOp m] [MonadLiftT LowOp m]
+    (hpair : (monadLift HighOp.readPair : m (Nat × Nat)) = do
+      let first ← liftM LowOp.read
+      let second ← liftM LowOp.read
       pure (first, second)) :
-    Freer.fold target compiledDifference = difference source :=
-  (lower_correct source target hpair (toFreer difference)).trans
-    (toFinal_toFreer_rel difference difference difference.parametric source)
+    toFinal compiledDifference (m := m) = difference (m := m) := by
+  exact (lower_correct hpair (toFreer @difference)).trans
+    (toFinal_toFreer_rel @difference @difference difference.parametric)
 
 -- Each read consumes one input; exhausted input yields zero without consuming anything.
-def readHandler : (α : Type) → LowOp α → StateM (List Nat) α
-  | _, .read => fun input => match input with
-    | [] => (0, [])
-    | first :: rest => (first, rest)
+local instance readHandler : MonadLift LowOp (StateM (List Nat)) where
+  monadLift
+    | .read => fun input => match input with
+      | [] => (0, [])
+      | first :: rest => (first, rest)
 
 -- The high-level interpreter obtains the pair directly from the input list.
-def pairHandler : (α : Type) → HighOp α → StateM (List Nat) α
-  | _, .readPair => fun input => match input with
-    | [] => ((0, 0), [])
-    | [first] => ((first, 0), [])
-    | first :: second :: rest => ((first, second), rest)
+local instance pairHandler : MonadLift HighOp (StateM (List Nat)) where
+  monadLift
+    | .readPair => fun input => match input with
+      | [] => ((0, 0), [])
+      | [first] => ((first, 0), [])
+      | first :: second :: rest => ((first, second), rest)
 
-theorem handlers_compatible : pairHandler _ .readPair = (do
-    let first ← readHandler _ .read
-    let second ← readHandler _ .read
+theorem handlers_compatible :
+    (monadLift HighOp.readPair : StateM (List Nat) (Nat × Nat)) = (do
+    let first ← liftM LowOp.read
+    let second ← liftM LowOp.read
     pure (first, second)) := by
   funext input
   cases input with
@@ -113,15 +116,16 @@ theorem handlers_compatible : pairHandler _ .readPair = (do
 -- Return values and remaining input agree for every input list. The proof uses
 -- the generic compiler theorem, rather than unfolding this particular program.
 theorem difference_run_eq (input : List Nat) :
-    (Freer.fold readHandler compiledDifference).run input = (difference pairHandler).run input :=
+    (toFinal compiledDifference (m := StateM (List Nat))).run input =
+      (difference (m := StateM (List Nat))).run input :=
   congrArg (fun program => program.run input)
-    (difference_correct pairHandler readHandler handlers_compatible)
+    (difference_correct handlers_compatible)
 
-#guard ((difference pairHandler).run [7, 3, 99]).run == (4, [99])
-#guard ((Freer.fold readHandler compiledDifference).run [7, 3, 99]).run == (4, [99])
-#guard ((Freer.fold readHandler compiledDifference).run [3, 7, 99]).run == (0, [99])
-#guard ((Freer.fold readHandler compiledDifference).run [7]).run == (7, [])
-#guard ((Freer.fold readHandler compiledDifference).run []).run == (0, [])
+#guard ((difference (m := StateM (List Nat))).run [7, 3, 99]).run == (4, [99])
+#guard ((toFinal compiledDifference (m := StateM (List Nat))).run [7, 3, 99]).run == (4, [99])
+#guard ((toFinal compiledDifference (m := StateM (List Nat))).run [3, 7, 99]).run == (0, [99])
+#guard ((toFinal compiledDifference (m := StateM (List Nat))).run [7]).run == (7, [])
+#guard ((toFinal compiledDifference (m := StateM (List Nat))).run []).run == (0, [])
 
 #guard_uses difference_correct ⊇ [lower_correct, toFinal_toFreer_rel, difference.parametric]
 #guard_uses difference_run_eq ⊇ [difference_correct, handlers_compatible]

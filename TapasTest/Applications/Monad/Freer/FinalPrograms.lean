@@ -5,8 +5,8 @@ import TapasTest.Applications.Monad.Freer.Basic
 meta import TapasTest.Applications.Monad.Freer.Basic -- shake: keep (required by #guard/#eval)
 
 /-!
-State programs written directly as `Final` values. Ordinary `get` and `set` calls
-become requests to the supplied handler; sequencing, branching, and recursion stay
+State programs written directly as `Final` values. `liftM` sends state requests to
+the supplied instance; sequencing, branching, and recursion stay
 ordinary Lean code. Each generated parametricity theorem supplies the premise of
 `toFinal_toFreer`, so reification needs no separate correctness proof for the program.
 -/
@@ -22,69 +22,73 @@ inductive StateOp : Type → Type where
   | set : Nat → StateOp Unit
 
 -- Translation of `do let old ← get; set (old + amount); pure old`.
-def add (amount : Nat) : Final.{0, 0, w} StateOp Nat := fun {_} _ h => do
-  let old ← h _ .get
-  h _ (.set (old + amount))
+def add (amount : Nat) : Final.{0, 0, w} StateOp Nat := fun {_} _ _ => do
+  let old ← liftM StateOp.get
+  liftM (StateOp.set (old + amount))
   pure old
 
 derive_parametric add (repr := m)
 
-example (amount : Nat) : Final.Rel (add.{w} amount) (add.{w'} amount) :=
+example (amount : Nat) : Final.Rel (@add.{w} amount) (@add.{w'} amount) :=
   add.parametric amount
 
 -- Freer StateOp returns values in Type 1. The same-universe roundtrip theorem
--- therefore compares handler functions into an arbitrary lawful m : Type → Type 1.
-theorem add_roundtrip (amount : Nat) {m : Type → Type 1} [Monad m] [LawfulMonad m] :
-    toFinal (toFreer (add amount)) (m := m) = add amount (m := m) :=
-  toFinal_toFreer (add amount) (add.parametric amount)
+-- therefore compares computations in an arbitrary lawful m : Type → Type 1.
+theorem add_roundtrip (amount : Nat)
+    {m : Type → Type 1} [Monad m] [LawfulMonad m] [MonadLiftT StateOp m] :
+    toFinal (toFreer (@add amount)) (m := m) = add amount (m := m) :=
+  toFinal_toFreer (@add amount) (add.parametric amount)
 
 -- Translation of a state program whose next operation depends on the value read.
-def withdraw (amount : Nat) : Final.{0, 0, w} StateOp Bool := fun {_} _ h => do
-  let balance ← h _ .get
+def withdraw (amount : Nat) : Final.{0, 0, w} StateOp Bool := fun {_} _ _ => do
+  let balance ← liftM StateOp.get
   if amount ≤ balance then
-    h _ (.set (balance - amount))
+    liftM (StateOp.set (balance - amount))
     pure true
   else
     pure false
 
 derive_parametric withdraw (repr := m)
 
-example (amount : Nat) : Final.Rel (withdraw.{w} amount) (withdraw.{w'} amount) :=
+example (amount : Nat) : Final.Rel (@withdraw.{w} amount) (@withdraw.{w'} amount) :=
   withdraw.parametric amount
 
-theorem withdraw_roundtrip (amount : Nat) {m : Type → Type 1} [Monad m] [LawfulMonad m] :
-    toFinal (toFreer (withdraw amount)) (m := m) = withdraw amount (m := m) :=
-  toFinal_toFreer (withdraw amount) (withdraw.parametric amount)
+theorem withdraw_roundtrip (amount : Nat)
+    {m : Type → Type 1} [Monad m] [LawfulMonad m] [MonadLiftT StateOp m] :
+    toFinal (toFreer (@withdraw amount)) (m := m) = withdraw amount (m := m) :=
+  toFinal_toFreer (@withdraw amount) (withdraw.parametric amount)
 
 -- Reuse withdraw for each request and count the successful withdrawals.
 -- The roundtrip proof below stays the same despite this program's recursion.
-def withdrawMany (amounts : List Nat) : Final.{0, 0, w} StateOp Nat := fun {_} _ h =>
+def withdrawMany (amounts : List Nat) : Final.{0, 0, w} StateOp Nat := fun {_} _ _ =>
   match amounts with
   | [] => pure 0
   | amount :: rest => do
-    let accepted ← withdraw amount h
-    let count ← withdrawMany rest h
+    let accepted ← withdraw amount
+    let count ← withdrawMany rest
     pure (if accepted then count + 1 else count)
 
 derive_parametric withdrawMany (repr := m)
 
-example (amounts : List Nat) : Final.Rel (withdrawMany.{w} amounts) (withdrawMany.{w'} amounts) :=
+example (amounts : List Nat) : Final.Rel (@withdrawMany.{w} amounts) (@withdrawMany.{w'} amounts) :=
   withdrawMany.parametric amounts
 
 theorem withdrawMany_roundtrip (amounts : List Nat)
-    {m : Type → Type 1} [Monad m] [LawfulMonad m] :
-    toFinal (toFreer (withdrawMany amounts)) (m := m) = withdrawMany amounts (m := m) :=
-  toFinal_toFreer (withdrawMany amounts) (withdrawMany.parametric amounts)
+    {m : Type → Type 1} [Monad m] [LawfulMonad m] [MonadLiftT StateOp m] :
+    toFinal (toFreer (@withdrawMany amounts)) (m := m) = withdrawMany amounts (m := m) :=
+  toFinal_toFreer (@withdrawMany amounts) (withdrawMany.parametric amounts)
 
 -- The handler recovers the usual state operations.
 def stateHandler : (α : Type) → StateOp α → StateM Nat α
   | _, .get => get
   | _, .set value => set value
 
-example (amount : Nat) : add amount stateHandler =
+local instance : MonadLift StateOp (StateM Nat) := ⟨stateHandler _⟩
+
+example (amount : Nat) : add amount (m := StateM Nat) =
     (do let old ← get; set (old + amount); pure old) := rfl
 
-example (amount : Nat) : withdraw amount stateHandler =
+example (amount : Nat) : withdraw amount (m := StateM Nat) =
     (do
       let balance ← get
       if amount ≤ balance then
@@ -94,21 +98,22 @@ example (amount : Nat) : withdraw amount stateHandler =
         pure false) := rfl
 
 -- Reification produces the expected requests, including the read-dependent write.
-example (amount : Nat) : toFreer (add amount) =
+example (amount : Nat) : toFreer (@add amount) =
     .impure .get (fun old => .impure (.set (old + amount)) (fun _ => .pure old)) := rfl
 
 -- StateM Nat returns values in Type, so this execution uses the cross-universe
 -- theorem with two universe instances of the same Final program.
 theorem withdrawMany_state_roundtrip (amounts : List Nat) :
-    toFinal (toFreer (withdrawMany amounts)) stateHandler = withdrawMany amounts stateHandler :=
-  toFinal_toFreer_rel (withdrawMany amounts) (withdrawMany amounts)
-    (withdrawMany.parametric amounts) stateHandler
+    toFinal (toFreer (@withdrawMany amounts)) (m := StateM Nat) =
+      withdrawMany amounts (m := StateM Nat) :=
+  toFinal_toFreer_rel (@withdrawMany amounts) (@withdrawMany amounts)
+    (withdrawMany.parametric amounts)
 
-#guard ((add 3 stateHandler).run 5).run == (5, 8)
-#guard ((withdraw 3 stateHandler).run 5).run == (true, 2)
-#guard ((withdraw 8 stateHandler).run 5).run == (false, 5)
-#guard ((withdrawMany [3, 8, 2] stateHandler).run 10).run == (2, 5)
-#guard ((toFinal (toFreer (withdrawMany [3, 8, 2])) stateHandler).run 10).run == (2, 5)
+#guard ((add 3 (m := StateM Nat)).run 5).run == (5, 8)
+#guard ((withdraw 3 (m := StateM Nat)).run 5).run == (true, 2)
+#guard ((withdraw 8 (m := StateM Nat)).run 5).run == (false, 5)
+#guard ((withdrawMany [3, 8, 2] (m := StateM Nat)).run 10).run == (2, 5)
+#guard ((toFinal (toFreer (@withdrawMany [3, 8, 2])) (m := StateM Nat)).run 10).run == (2, 5)
 
 #guard_axioms add.parametric, withdraw.parametric, withdrawMany.parametric ⊆ []
 #guard_axioms add_roundtrip, withdraw_roundtrip, withdrawMany_roundtrip,

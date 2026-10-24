@@ -83,19 +83,30 @@ theorem fold_self (t : Freer E α) : fold (m := Freer E) (fun _ => monadLift) t 
 
 end Freer
 
--- A final program accepts an interpretation of every request.
+/-
+NOTE: The original definition passed the request handler explicitly:
+
 abbrev Final (E : Type u → Type v) (α : Type u) :=
   {m : Type u → Type w} → [Monad m] → ((β : Type u) → E β → m β) → m α
+
+`MonadLiftT E m` packages exactly this handler, with an implicit result type. It adds no
+laws and does not require `E` to be a monad. Packaging and unpackaging the handler are
+inverse without parametricity or monad laws.
+-/
+/-- Programs that make their requests through `MonadLiftT E`. -/
+abbrev Final (E : Type u → Type v) (α : Type u) :=
+  {m : Type u → Type w} → [Monad m] → [MonadLiftT E m] → m α
 
 -- Relational parametricity between two final programs, read off the type of `Final`: it
 -- quantifies over all computation relations that preserve the monad operations, and requires
 -- the handlers to map each request to related computations. The two programs may use different
 -- computation universes, so `Final.Rel` also relates two universe instances of the same
--- declaration, as reification and execution need; `Final.Rel p p` is the same-universe case.
+-- declaration, as reification and execution need; `Final.Rel @p @p` is the same-universe case.
+-- Write `@p` when passing the whole program, so its implicit arguments are not filled in.
 derive_type_rel Final (repr := m)
 
 @[expose] def toFinal {E : Type u → Type v} {α : Type u} (t : Freer E α) :
-    Final.{u, v, w} E α := fun {m} _ h => Freer.fold (m := m) h t
+    Final.{u, v, w} E α := fun {m} _ _ => Freer.fold (m := m) (fun _ => monadLift) t
 
 -- `toFinal.parametric` uses `Freer.fold.parametric` to show that every syntax tree
 -- gives a final encoding related to itself by `Final.Rel`, even across different
@@ -104,13 +115,13 @@ derive_parametric toFinal (repr := m)
 
 /-- Every reified program gives related final interpretations. -/
 theorem toFinal_rel {E : Type u → Type v} {α : Type u} (t : Freer E α) :
-    Final.Rel (toFinal.{u, v, w} t) (toFinal.{u, v, w'} t) :=
+    Final.Rel (@toFinal.{u, v, w} E α t) (@toFinal.{u, v, w'} E α t) :=
   toFinal.parametric t
 
 -- Reification needs an output universe large enough to instantiate m := Freer E.
 @[expose] def toFreer {E : Type u → Type v} {α : Type u}
     (p : Final.{u, v, max (u + 1) v} E α) : Freer E α :=
-  p (m := Freer E) (fun _ => monadLift)
+  p (m := Freer E)
 
 theorem toFreer_toFinal {E : Type u → Type v} {α : Type u} (t : Freer E α) :
     toFreer (toFinal t) = t := Freer.fold_self t
@@ -137,18 +148,19 @@ the raw `Final` type also admits unlawful dictionaries.
 -/
 theorem toFinal_toFreer_rel {E : Type u → Type v} {α : Type u}
     (p : Final.{u, v, max (u + 1) v} E α) (q : Final.{u, v, w} E α)
-    (hpq : Final.Rel p q) {m : Type u → Type w} [Monad m] [LawfulMonad m]
-    (h : (β : Type u) → E β → m β) :
-    toFinal (toFreer p) h = q h :=
-  hpq (m := Freer E) (m' := m) (graph h) (graph_monad h)
-    (fun _ => monadLift) h (fun _ op => Freer.fold_monadLift h op)
+    (hpq : Final.Rel @p @q) {m : Type u → Type w} [Monad m] [LawfulMonad m]
+    [MonadLiftT E m] :
+    toFinal (toFreer @p) (m := m) = q (m := m) :=
+  hpq (m := Freer E) (m' := m) (graph (fun _ => monadLift))
+    (graph_monad (fun _ => monadLift))
+    (MonadLiftT.Rel.mk (left := (_)) (right := (_)) _
+      (fun op => Freer.fold_monadLift (m := m) (fun _ => monadLift) op))
 
 /-- Reifying a self-related final program preserves its interpretation in any lawful monad. -/
 theorem toFinal_toFreer {E : Type u → Type v} {α : Type u}
-    (p : Final.{u, v, max (u + 1) v} E α) (hp : Final.Rel p p)
-    {m : Type u → Type (max (u + 1) v)} [Monad m] [LawfulMonad m] :
-    toFinal (toFreer p) (m := m) = p (m := m) := by
-  funext h
-  exact toFinal_toFreer_rel p p hp h
+    (p : Final.{u, v, max (u + 1) v} E α) (hp : Final.Rel @p @p)
+    {m : Type u → Type (max (u + 1) v)} [Monad m] [LawfulMonad m] [MonadLiftT E m] :
+    toFinal (toFreer @p) (m := m) = p (m := m) :=
+  toFinal_toFreer_rel @p @p hp
 
 end TapasTest.Applications.Monad.Freer.Basic
