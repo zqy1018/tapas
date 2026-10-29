@@ -2,9 +2,11 @@ module
 
 public import TapasTest.TestingUtils
 public import TapasTest.Applications.Monad.Freer.Basic
-public import Std.Do
+public import Std.WP
 import Std.Tactic.Do
 import Std.Tactic.BVDecide.Normalize.Prop
+
+set_option experimental.vcgen true
 
 public section
 
@@ -16,57 +18,75 @@ an executable handler only needs to choose an answer satisfying that specificati
 
 namespace TapasTest.Applications.Monad.Freer.WP
 
-open Std.Do Tapas.Parametricity TapasTest.Applications.Monad.Freer.Basic
+open Std.WP Lean.Order Tapas.Parametricity TapasTest.Applications.Monad.Freer.Basic
 
 universe u v w
 
 -- Fixing request syntax does not fix its meaning. The caller supplies that meaning
 -- as a predicate transformer for each request; fold extends it to the whole tree.
 /-- Operation specifications give a weakest-precondition interpretation of request trees. -/
-abbrev wpMonad {E : Type u → Type v} {ps : PostShape.{u}}
-    (spec : (α : Type u) → E α → PredTrans ps α) : WPMonad (Freer E) ps where
-  wp := Freer.fold spec
-  wp_pure _ := rfl
-  wp_bind x f := Freer.fold_bind spec x f
+abbrev wpOfSpec {E : Type u → Type v} {Pred EPred : Type u} {α : Type u}
+    [Assertion Pred] [Assertion EPred]
+    (spec : (α : Type u) → E α → PredTrans Pred EPred α)
+    (mono : ∀ α (op : E α), (spec α op).monotone) : WP (Freer E α) α Pred EPred where
+  wpTrans := Freer.fold spec
+  wp_trans_monotone tree := by
+    induction tree with
+    | pure a => exact fun _ _ _ _ _ hpost => hpost a
+    | impure op k ih =>
+      intro post post' epost epost' hepost hpost
+      simp only [Freer.fold, PredTrans.apply_Bind_bind]
+      exact mono _ op _ _ _ _ hepost (fun a => ih a _ _ _ _ hepost hpost)
+
+/-- The request-tree interpretation is sound for the monad operations. -/
+abbrev wpMonad {E : Type u → Type v} {Pred EPred : Type u}
+    [Assertion Pred] [Assertion EPred]
+    (spec : (α : Type u) → E α → PredTrans Pred EPred α)
+    (mono : ∀ α (op : E α), (spec α op).monotone) : WPMonad (Freer E) Pred EPred where
+  toWP _ := wpOfSpec spec mono
+  pure_le_wp_pure _ _ _ := PartialOrder.rel_refl
+  bind_le_wp_bind x f post epost := by
+    change (Freer.fold spec x).apply (fun a => (Freer.fold spec (f a)).apply post epost) epost ⊑
+      (Freer.fold spec (Freer.bind x f)).apply post epost
+    rw [Freer.fold_bind]
+    exact PartialOrder.rel_refl
 
 /-- A handler satisfying each operation specification preserves every proved precondition. -/
-theorem fold_sound {E : Type u → Type v} {ps : PostShape.{u}}
-    (spec : (α : Type u) → E α → PredTrans ps α)
-    {m : Type u → Type w} [Monad m] [WPMonad m ps]
+theorem fold_sound {E : Type u → Type v} {Pred EPred : Type u}
+    [Assertion Pred] [Assertion EPred]
+    (spec : (α : Type u) → E α → PredTrans Pred EPred α)
+    {m : Type u → Type w} [Monad m] [WPMonad m Pred EPred]
     (handler : (α : Type u) → E α → m α)
-    (hspec : ∀ α (op : E α) Q, (spec α op).apply Q ⊢ₛ wp⟦handler α op⟧ Q)
-    {α : Type u} (tree : Freer E α) (Q : PostCond α ps) :
-    (Freer.fold spec tree).apply Q ⊢ₛ wp⟦Freer.fold handler tree⟧ Q := by
+    (hspec : ∀ α (op : E α) Q E, (spec α op).apply Q E ⊑ wp (handler α op) Q E)
+    {α : Type u} (tree : Freer E α) (Q : α → Pred) (E : EPred) :
+    (Freer.fold spec tree).apply Q E ⊑ wp (Freer.fold handler tree) Q E := by
   induction tree with
-  | pure a => simp only [Freer.fold, WPMonad.wp_pure]; exact .rfl
+  | pure a => exact WPMonad.pure_le_wp_pure a Q E
   | impure op k ih =>
-    simp only [Freer.fold, WPMonad.wp_bind, PredTrans.apply_Bind_bind]
-    refine (hspec _ op _).trans ((wp (handler _ op)).mono _ _ ?_)
-    exact ⟨ih, .rfl⟩
+    simp only [Freer.fold, PredTrans.apply_Bind_bind]
+    exact PartialOrder.rel_trans (hspec _ op _ E)
+      (PartialOrder.rel_trans (WP.wp_consequence _ _ _ E ih)
+        (WPMonad.bind_le_wp_bind _ _ Q E))
 
 inductive InputOp : Type → Type where
   | sample : Nat → InputOp Nat
 
 -- The predicate must hold for every permitted answer, not just one chosen answer.
 -- Even at bound = 0 there is an allowed answer, so this specification is not vacuous.
-def inputSpec : (α : Type) → InputOp α → PredTrans .pure α
-  | _, .sample bound => {
-      trans := fun Q => spred(∀ value, ⌜value ≤ bound⌝ → Q.1 value)
-      conjunctiveRaw := by
-        intro Q₁ Q₂
-        constructor
-        · intro h
-          exact ⟨fun value hv => (h value hv).1, fun value hv => (h value hv).2⟩
-        · rintro ⟨h₁, h₂⟩ value hv
-          exact ⟨h₁ value hv, h₂ value hv⟩ }
+def inputSpec : (α : Type) → InputOp α → PredTrans Prop EStack⟨⟩ α
+  | _, .sample bound => ⟨fun Q _ => ∀ value, value ≤ bound → Q value⟩
 
-local instance : WPMonad (Freer InputOp) .pure := wpMonad inputSpec
+local instance : WPMonad (Freer InputOp) Prop EStack⟨⟩ :=
+  wpMonad inputSpec (fun _ op => by
+    cases op with
+    | sample bound => exact fun _ _ _ _ _ hpost h value hv => hpost value (h value hv))
 
 -- This is the only primitive specification the verification-condition generator needs.
 @[spec]
 theorem sample_spec (bound : Nat) :
-    ⦃⌜True⌝⦄ (MonadLift.monadLift (InputOp.sample bound) : Freer InputOp Nat)
-      ⦃⇓ value => ⌜value ≤ bound⌝⦄ := by
+    ⦃True⦄ (MonadLift.monadLift (InputOp.sample bound) : Freer InputOp Nat)
+      ⦃fun value => value ≤ bound⦄ := by
+  constructor
   intro _ value hv
   exact hv
 
@@ -78,24 +98,25 @@ def sumInputs (bound : Nat) : Final.{0, 0, w} InputOp Nat := fun {_} _ _ => do
 
 derive_parametric sumInputs (repr := m)
 
--- No executable handler has been selected here: mvcgen uses the request specification.
-set_option mvcgen.warning false in
+-- No executable handler has been selected here: vcgen uses the request specification.
 theorem sumInputs_spec (bound : Nat) :
-    ⦃⌜True⌝⦄ toFreer (@sumInputs bound) ⦃⇓ total => ⌜total ≤ 2 * bound⌝⦄ := by
-  mvcgen [toFreer, sumInputs]
-  all_goals (mleave; omega)
+    ⦃True⦄ toFreer (@sumInputs bound) ⦃fun total => total ≤ 2 * bound⦄ := by
+  simp only [toFreer, sumInputs, liftM, Spec.UnfoldLift.monadLift_trans,
+    Spec.UnfoldLift.monadLift_refl]
+  vcgen
+  all_goals omega
 
 -- The program proof transfers to any MonadLiftT implementation satisfying the operation specifications.
 -- Parametricity supplies the cross-universe roundtrip, from Freer in Type 1 to m.
-theorem sumInputs_correct (bound : Nat) {m : Type → Type w} [Monad m] [WPMonad m .pure]
+theorem sumInputs_correct (bound : Nat) {m : Type → Type w} [Monad m] [WPMonad m Prop EStack⟨⟩]
     [MonadLiftT InputOp m]
-    (hspec : ∀ α (op : InputOp α) Q,
-      (inputSpec α op).apply Q ⊢ₛ wp⟦(monadLift op : m α)⟧ Q) :
-    ⦃⌜True⌝⦄ sumInputs bound (m := m) ⦃⇓ total => ⌜total ≤ 2 * bound⌝⦄ := by
+    (hspec : ∀ α (op : InputOp α) Q E,
+      (inputSpec α op).apply Q E ⊑ wp (monadLift op : m α) Q E) :
+    ⦃True⦄ sumInputs bound (m := m) ⦃fun total => total ≤ 2 * bound⦄ := by
   rw [← toFinal_toFreer_rel (@sumInputs.{1} bound) (@sumInputs.{w} bound)
     (sumInputs.parametric bound)]
-  exact SPred.entails.trans (sumInputs_spec bound)
-    (fold_sound inputSpec (fun _ => monadLift) hspec _ _)
+  exact ⟨PartialOrder.rel_trans (sumInputs_spec bound).le_wp
+    (fold_sound inputSpec (fun _ => monadLift) hspec _ _ _)⟩
 
 /-- Execute requests using a chosen answer for each bound. -/
 @[instance_reducible] def runWith (choose : Nat → Nat) : MonadLift InputOp Id where
@@ -104,10 +125,10 @@ theorem sumInputs_correct (bound : Nat) {m : Type → Type w} [Monad m] [WPMonad
 
 theorem runWith_sound (choose : Nat → Nat) (hchoose : ∀ bound, choose bound ≤ bound) :
     letI := runWith choose
-    ∀ α (op : InputOp α) Q,
-      (inputSpec α op).apply Q ⊢ₛ wp⟦(monadLift op : Id α)⟧ Q := by
+    ∀ α (op : InputOp α) Q E,
+      (inputSpec α op).apply Q E ⊑ wp (monadLift op : Id α) Q E := by
   letI := runWith choose
-  intro α op Q
+  intro α op Q E
   cases op with
   | sample bound =>
     intro h
@@ -120,7 +141,7 @@ theorem sumInputs_run_bound (choose : Nat → Nat) (hchoose : ∀ bound, choose 
     letI := runWith choose
     (sumInputs bound (m := Id)).run ≤ 2 * bound := by
   letI := runWith choose
-  exact sumInputs_correct bound (runWith_sound choose hchoose) True.intro
+  exact (sumInputs_correct bound (runWith_sound choose hchoose)).le_wp True.intro
 
 example (bound : Nat) :
     letI := runWith (fun _ => 0)
@@ -137,16 +158,18 @@ example (bound : Nat) :
 #guard (letI := runWith id; (sumInputs 0 (m := Id)).run) == 0
 
 -- The specification allows nonzero answers: it cannot establish a zero-only result.
-example : ¬ (⦃⌜True⌝⦄ toFreer (@sumInputs 1) ⦃⇓ total => ⌜total = 0⌝⦄) := by
+example : ¬ (⦃True⦄ toFreer (@sumInputs 1) ⦃fun total => total = 0⦄) := by
   intro h
-  have impossible := h True.intro 1 (Nat.le_refl 1) 1 (Nat.le_refl 1)
+  have impossible := h.le_wp True.intro 1 (Nat.le_refl 1) 1 (Nat.le_refl 1)
   cases impossible
 
 #guard_uses sumInputs_correct ⊇ [sumInputs_spec, fold_sound, toFinal_toFreer_rel,
   sumInputs.parametric]
 #guard_uses sumInputs_run_bound ⊇ [sumInputs_correct, runWith_sound]
 #guard_axioms sumInputs.parametric ⊆ []
-#guard_axioms wpMonad, fold_sound, inputSpec, sample_spec, sumInputs_spec,
-  sumInputs_correct, runWith_sound, sumInputs_run_bound ⊆ [propext, Quot.sound]
+#guard_axioms wpMonad, fold_sound, inputSpec, runWith_sound ⊆ [propext, Quot.sound]
+-- The assertion-lattice operations used by `Std.WP` add `Classical.choice` to these proofs.
+#guard_axioms sample_spec, sumInputs_spec, sumInputs_correct, sumInputs_run_bound
+  ⊆ [propext, Classical.choice, Quot.sound]
 
 end TapasTest.Applications.Monad.Freer.WP

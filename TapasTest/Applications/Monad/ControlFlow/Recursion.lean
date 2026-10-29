@@ -1,7 +1,6 @@
 module
 
 import TapasTest.TestingUtils
-import all Init.Data.Array.Basic -- exercise mapM's unsupported private helper
 
 /-!
 Recursive monadic programs: the signature `infer_effects` gives each recursion shape, and what
@@ -314,11 +313,8 @@ error: parametricity: expected a definition with a body: _private.TapasTest.Appl
 #guard_msgs in
 derive_parametric spin
 
-/- `Array.mapM` recurses through a private helper, like the range loop, but unlike it has no
-unconditional way around: it rewrites to `List.mapM` or to `Array.foldlM`, and both rewrites
-assume `LawfulMonad` of *both* interpretations, which a translation applied to an arbitrary pair
-of related monads cannot supply. A program that needs it relates it under its own lawfulness
-premises. -/
+/- A named library function needs a registered translation before a program can use it.
+`Array.mapM` and its recursive helper can be derived together without lawfulness premises. -/
 def arrayMapMProg (xs : Array Nat) := infer_effects% do
   xs.mapM fun x => do set x; tick
 
@@ -328,12 +324,14 @@ error: parametricity: no applicable translation for Array.mapM; use `derive_para
 #guard_msgs in
 derive_parametric arrayMapMProg
 
--- And following that instruction runs into the private helper, which is where it stops.
-/--
-error: parametricity: no applicable translation for _private.Init.Data.Array.Basic.0.Array.mapM.map; use `derive_parametric _private.Init.Data.Array.Basic.0.Array.mapM.map` or `attribute [parametric] theoremName`
--/
-#guard_msgs in
+#guard_no_parametric arrayMapMProg
+
 derive_parametric Array.mapM (repr := m)
+derive_parametric arrayMapMProg
+
+#guard_uses type Array.mapM.parametric ∩ [LawfulMonad] = ∅
+#guard_axioms Array.mapM.parametric, arrayMapMProg.parametric ⊆
+  [propext, Classical.choice, Quot.sound]
 
 /- A `while` loop expands to `ForIn` over `Lean.Loop`, and `Lean.Loop.forIn` is `whileM`, whose
 value is a classically chosen fixed point rather than a recursion the walk can follow, so no
@@ -384,9 +382,9 @@ derive_parametric good
 
 #guard_parametric tick, countDown, evenSet, halve, chase, evenSteps, oddSteps, total,
   total.go, pfix, forList, loopReturn, loopBreak, arrayLoop, forRange, forPRange,
-  forPRangeIncl, mapMProg, folded
+  forPRangeIncl, mapMProg, folded, arrayMapMProg
 
-#guard_no_parametric spin, whileLoop, viaRec, arrayMapMProg, good, bad
+#guard_no_parametric spin, whileLoop, viaRec, good, bad
 
 -- A recursive theorem uses functional induction rather than recursion on itself.
 #guard_uses countDown.parametric ⊇ [countDown.induct]

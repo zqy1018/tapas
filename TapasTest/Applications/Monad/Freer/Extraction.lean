@@ -4,6 +4,8 @@ import TapasTest.Applications.Monad.Freer.WP
 import TapasTest.Applications.Monad.Freer.Signature
 import Std.Tactic.Do
 
+set_option experimental.vcgen true
+
 /-!
 One program, two instantiations. A nondeterministic choice is reified on top of a base monad,
 so that a verification covers every possible answer, while an execution gives one answer to
@@ -19,7 +21,7 @@ does tell, and an execution only has to answer those types.
 
 namespace TapasTest.Applications.Monad.Freer.Extraction
 
-open Std.Do Tapas.Parametricity Tapas.LogicalRelation
+open Std.WP Lean.Order Tapas.Parametricity Tapas.LogicalRelation
 open TapasTest.Applications.Monad.Freer.Basic TapasTest.Applications.Monad.Freer.Signature
 open TapasTest.Applications.Monad.Freer.WP (wpMonad)
 
@@ -49,21 +51,14 @@ instance {m : Type → Type w} {τ : Type} : MonadChoice τ (FreerT Choice m) wh
   pick := .impure (.inl (.pick τ)) .pure
 
 /-- Demonic choice: the postcondition must hold for every value. -/
-def pickAny {ps : PostShape.{u}} {α : Type u} : PredTrans ps α where
-  trans Q := spred(∀ a, Q.1 a)
-  conjunctiveRaw := by
-    intro Q₁ Q₂
-    refine SPred.bientails.iff.mpr ⟨?_, ?_⟩
-    · exact SPred.and_intro (SPred.forall_mono fun _ => SPred.and_elim_l)
-        (SPred.forall_mono fun _ => SPred.and_elim_r)
-    · exact SPred.forall_intro fun a =>
-        SPred.and_intro (SPred.and_elim_l.trans (SPred.forall_elim a))
-          (SPred.and_elim_r.trans (SPred.forall_elim a))
+noncomputable def pickAny {Pred EPred : Type u} [Assertion Pred] {α : Type u} :
+    PredTrans Pred EPred α := ⟨fun Q _ => ⨅ a, Q a⟩
 
 -- Fixing the requested type does not fix the answer: any value of the type is allowed, and a
 -- verification has to hold for all of them.
 /-- The answer may be any value of the requested type. -/
-def choiceSpec {ps : PostShape} : (α : Type) → Choice α → PredTrans ps α
+noncomputable def choiceSpec {Pred EPred : Type} [Assertion Pred] :
+    (α : Type) → Choice α → PredTrans Pred EPred α
   | _, .pick _ => pickAny
 
 /-- Executions keep the balance in the state of an arbitrary base monad. -/
@@ -72,22 +67,31 @@ abbrev Exec (n : Type → Type v) := StateT Nat n
 /-- Verification adds uninterpreted choices on top of the balance. -/
 abbrev Symbolic (n : Type → Type v) := FreerT Choice (Exec n)
 
-variable {n : Type → Type v} {ps : PostShape} [Monad n] [WPMonad n ps]
+variable {n : Type → Type v} {Pred EPred : Type} [Monad n]
+  [Assertion Pred] [Assertion EPred] [WPMonad n Pred EPred]
 
 /- The specification of a base request is that monad's own `wp`, so this single instance
 gives the weakest precondition calculus of the whole stack. -/
-local instance symbolicWP : WPMonad (Symbolic n) (.arg Nat ps) :=
+noncomputable local instance symbolicWP : WPMonad (Symbolic n) (Nat → Pred) EPred :=
   wpMonad (fun _ req => match req with
     | .inl op => choiceSpec _ op
-    | .inr x => wp x)
+    | .inr x => WP.wpTrans x) (fun _ req => by
+      cases req with
+      | inl op =>
+        cases op
+        exact fun _ _ _ _ _ hQ => iInf_mono hQ
+      | inr x => exact WP.wp_trans_monotone x)
 
 -- The constraint on an answer lives in its type. This entry states it as a postcondition, the
 -- form in which the verification-condition generator can use it.
 /-- A choice from a subtype returns a value satisfying its predicate. -/
 @[spec]
 theorem pick_spec {α : Type} {p : α → Prop} :
-    ⦃⌜True⌝⦄ (MonadChoice.pick : Symbolic n {x // p x}) ⦃⇓ a => ⌜p a⌝⦄ :=
-  SPred.forall_intro fun a => SPred.pure_intro a.property
+    ⦃⊤⦄ (MonadChoice.pick : Symbolic n {x // p x}) ⦃fun a => ⌜p a.val⌝⦄ :=
+by
+  constructor
+  change ⊤ ⊑ ⨅ a : {x // p x}, ⌜p a.val⌝
+  exact le_iInf _ _ fun a => top_le_ofProp _ a.property
 
 -- FIXME: Make this general advice, library-level
 /- A lifted operation has three spellings, and they are not interchangeable.
@@ -96,11 +100,10 @@ theorem pick_spec {α : Type} {p : α → Prop} :
   only fires when it can synthesise `MonadLiftT`; with the monad abstract it reports a type
   mismatch instead. The explicit call is also what leaves the instance for `infer_effects%`
   to abstract. At a monad with the instance in scope, `do` does insert the lift by itself.
-* In a `@[spec]` lemma, write `MonadLift.monadLift`. Before matching a specification, the
-  verification condition generator rewrites `liftM` and `MonadLiftT.monadLift` away, using
-  `liftM`, `Spec.UnfoldLift.monadLift_trans` and `Spec.UnfoldLift.monadLift_refl`, which are
-  tagged `@[spec]` themselves. A specification stated with either of the two never applies,
-  and nothing reports this: the lemma still compiles, and only the proofs needing it fail.
+* In a `@[spec]` lemma, write `MonadLift.monadLift`. For programs using `liftM`, normalize
+  transitive and identity lifts with `simp only [liftM, Spec.UnfoldLift.monadLift_trans,
+  Spec.UnfoldLift.monadLift_refl]` before calling `vcgen`. This exposes the operation form
+  matched by the specifications.
 * Elsewhere, use the operation of the class actually assumed.
 -/
 
@@ -109,8 +112,8 @@ holds by `rfl`: Std provides `Spec.monadLift_StateT` and its siblings for the tr
 knows, and this is the one for `FreerT`. -/
 /-- A base computation keeps its own weakest precondition. -/
 @[spec]
-theorem lift_spec {α : Type} (x : Exec n α) (Q : PostCond α (.arg Nat ps)) :
-    ⦃wp⟦x⟧ Q⦄ (MonadLift.monadLift x : Symbolic n α) ⦃Q⦄ := .rfl
+theorem lift_spec {α : Type} (x : Exec n α) (Q : α → Nat → Pred) (E : EPred) :
+    ⦃wp x Q E⦄ (MonadLift.monadLift x : Symbolic n α) ⦃Q; E⦄ := ⟨by rfl⟩
 
 /-! ## Programs choosing within the balance -/
 
@@ -151,28 +154,29 @@ example : spend (m := Symbolic Id) =
 /- The proofs below fix the base monad, because the verification-condition generator
 reduces an assertion of a concrete shape, whereas the relation below holds for any base
 monad. No answer is chosen: the proofs cover every amount within the balance. -/
-set_option mvcgen.warning false in
 /-- Whatever amount is chosen, the balance decreases by the amount returned. -/
 theorem spend_spec (initial : Nat) :
-    ⦃fun s => ⌜s = initial⌝⦄ spend (m := Symbolic Id)
-      ⦃⇓ amount s => ⌜s + amount = initial⌝⦄ := by
-  mvcgen [spend]
-  all_goals (mleave; simp_all <;> omega)
+    ⦃fun s => s = initial⦄ spend (m := Symbolic Id)
+      ⦃fun amount s => s + amount = initial⦄ := by
+  vcgen [spend]
+  all_goals (simp_all <;> omega)
 
-set_option mvcgen.warning false in
 /-- The rounds spend exactly the difference between the initial and the final balance. -/
 theorem spendRounds_spec (rounds initial : Nat) :
-    ⦃fun s => ⌜s = initial⌝⦄ spendRounds (m := Symbolic Id) rounds
-      ⦃⇓ total s => ⌜s + total = initial⌝⦄ := by
-  mvcgen [spendRounds] invariants
-  | inv1 => ⇓ (_, total) s => ⌜s + total = initial⌝
-  all_goals (mleave; simp_all +zetaDelta <;> omega)
+    ⦃fun s => s = initial⦄ spendRounds (m := Symbolic Id) rounds
+      ⦃fun total s => s + total = initial⦄ := by
+  vcgen [spendRounds] invariants
+  | inv1 => fun _ _ total s => (s + total = initial)
+  all_goals (simp_all +zetaDelta <;> omega)
 
 -- Every amount within the balance is allowed, so no particular answer follows from the
 -- specification alone.
-example : ¬ (⦃fun s => ⌜s = 10⌝⦄ spend (m := Symbolic Id) ⦃⇓ amount _ => ⌜amount = 10⌝⦄) := by
+example : ¬ (⦃fun s => s = 10⦄ spend (m := Symbolic Id) ⦃fun amount _ => amount = 10⦄) := by
   intro h
-  have impossible := h 10 rfl ⟨0, Nat.zero_le _⟩
+  have impossible := h.le_wp 10 rfl
+  change (⨅ a : {x : Nat // x ≤ 10}, fun _ : Nat => a.val = 10) 10 at impossible
+  simp only [iInf_apply, iInf_prop_eq_forall] at impossible
+  have impossible := impossible ⟨0, Nat.zero_le _⟩
   cases impossible
 
 /-! ## Relating the two instantiations -/
@@ -186,33 +190,38 @@ example : ((τ : Type) → Choice τ → Exec Id τ) → False :=
 -- preserve. The relation chosen here is the conclusion wanted.
 /-- The execution establishes every postcondition that the symbolic computation establishes. -/
 def Refines : ComputationRelation (Symbolic n) (Exec n) :=
-  fun {α} x y => ∀ Q : PostCond α (.arg Nat ps), wp⟦x⟧ Q ⊢ₛ wp⟦y⟧ Q
+  fun {α} x y => ∀ (Q : α → Nat → Pred) (E : EPred), wp x Q E ⊑ wp y Q E
 
-/- `Monad.Rel.ofPureBind` derives the fields for the other monad operations from those for
-`pure` and `bind`, which needs both monads to be lawful. The case of `bind` holds because a
-weakest precondition is monotone in its postcondition. -/
+/- The symbolic WP is defined by a fold, so it preserves `pure` and `bind` exactly.
+The execution WP supplies soundness of those operations and monotonicity. -/
 /-- The monad operations preserve the relation. -/
-theorem refines_monad [LawfulMonad n] : Monad.Rel (Refines (n := n) (ps := ps)) :=
-  Monad.Rel.ofPureBind _ (fun a Q => by simp only [WP.pure]; exact .rfl) (by
-    intro α β x y f g hx hf Q
-    simp only [WP.bind]
-    exact ((wp x).mono (fun a => wp⟦f a⟧ Q, Q.2) (fun a => wp⟦g a⟧ Q, Q.2)
-      ⟨fun a => hf a Q, .rfl⟩).trans (hx _))
+theorem refines_monad : Monad.Rel (Refines (n := n) (Pred := Pred) (EPred := EPred)) :=
+  Monad.Rel.ofPureBind _ (fun a Q E => WPMonad.pure_le_wp_pure a Q E) (by
+    intro α β x y f g hx hf Q E
+    change (Freer.fold (fun _ req => match req with
+      | .inl op => choiceSpec _ op | .inr x => WP.wpTrans x)
+      (Freer.bind x f) : PredTrans (Nat → Pred) EPred β).apply Q E ⊑ wp (y >>= g) Q E
+    rw [Freer.fold_bind]
+    exact PartialOrder.rel_trans
+      (WP.wp_consequence x _ _ E (fun a => hf a Q E))
+      (PartialOrder.rel_trans (hx _ E) (WPMonad.bind_le_wp_bind y g Q E)))
 
 -- The symbolic balance operations are those of the execution, lifted, and a lifted
 -- computation keeps its weakest precondition, as in `lift_spec`.
 /-- Both instantiations access the balance in the same way. -/
-theorem refines_state : MonadStateOf.Rel (σ := Nat) (Refines (n := n) (ps := ps)) where
-  get _ := .rfl
-  set _ _ := .rfl
-  modifyGet _ _ := .rfl
+theorem refines_state :
+    MonadStateOf.Rel (σ := Nat) (Refines (n := n) (Pred := Pred) (EPred := EPred)) where
+  get _ _ := by rfl
+  set _ _ _ := by rfl
+  modifyGet _ _ _ := by rfl
 
 -- Every value is allowed, so the answer needs no condition of its own: the type of the choice
 -- already constrains it.
 /-- Answering a choice with a value, and doing nothing else, is related to the choice. -/
 theorem refines_pure {τ : Type} (a : τ) :
-    MonadChoice.Rel (right := ⟨pure a⟩) (Refines (n := n) (ps := ps)) :=
-  .mk (left := (_)) (right := (_)) _ fun _ => by simp only [WP.pure]; exact SPred.forall_elim a
+    MonadChoice.Rel (right := ⟨pure a⟩) (Refines (n := n) (Pred := Pred) (EPred := EPred)) :=
+  .mk (left := (_)) (right := (_)) _ fun Q E =>
+    PartialOrder.rel_trans (iInf_le _ a) (WPMonad.pure_le_wp_pure a Q E)
 
 /-! ## Transferring the verification to executions -/
 
@@ -226,18 +235,19 @@ to the choice. -/
 theorem spend_correct [∀ k, MonadChoice {x : Nat // x ≤ k} (Exec Id)]
     (hsound : ∀ k, MonadChoice.Rel (τ := {x : Nat // x ≤ k}) (Refines (n := Id)))
     (initial : Nat) :
-    ⦃fun s => ⌜s = initial⌝⦄ spend (m := Exec Id) ⦃⇓ amount s => ⌜s + amount = initial⌝⦄ :=
-  (spend_spec initial).trans (spend.parametric _ refines_monad refines_state hsound _)
+    ⦃fun s => s = initial⦄ spend (m := Exec Id) ⦃fun amount s => s + amount = initial⦄ :=
+  ⟨PartialOrder.rel_trans (spend_spec initial).le_wp
+    (spend.parametric _ refines_monad refines_state hsound _ _)⟩
 
 /-- Every execution whose choices are related spends exactly the difference between the initial
 and the final balance. -/
 theorem spendRounds_correct [∀ k, MonadChoice {x : Nat // x ≤ k} (Exec Id)]
     (hsound : ∀ k, MonadChoice.Rel (τ := {x : Nat // x ≤ k}) (Refines (n := Id)))
     (rounds initial : Nat) :
-    ⦃fun s => ⌜s = initial⌝⦄ spendRounds (m := Exec Id) rounds
-      ⦃⇓ total s => ⌜s + total = initial⌝⦄ :=
-  (spendRounds_spec rounds initial).trans
-    (spendRounds.parametric rounds _ refines_monad refines_state hsound _)
+    ⦃fun s => s = initial⦄ spendRounds (m := Exec Id) rounds
+      ⦃fun total s => s + total = initial⦄ :=
+  ⟨PartialOrder.rel_trans (spendRounds_spec rounds initial).le_wp
+    (spendRounds.parametric rounds _ refines_monad refines_state hsound _ _)⟩
 
 /-! ## Two executable advisors -/
 
@@ -252,8 +262,8 @@ local instance (k : Nat) : MonadChoice {x : Nat // x ≤ k} (Exec Id) where
   pick := pure ⟨k / 2, Nat.div_le_self _ _⟩
 
 example (rounds initial : Nat) :
-    ⦃fun s => ⌜s = initial⌝⦄ spendRounds (m := Exec Id) rounds
-      ⦃⇓ total s => ⌜s + total = initial⌝⦄ :=
+    ⦃fun s => s = initial⦄ spendRounds (m := Exec Id) rounds
+      ⦃fun total s => s + total = initial⦄ :=
   spendRounds_correct (fun _ => refines_pure _) rounds initial
 
 #guard ((spend (m := Exec Id)).run 10).run == (5, 5)
@@ -268,8 +278,8 @@ local instance (k : Nat) : MonadChoice {x : Nat // x ≤ k} (Exec Id) where
   pick := pure ⟨k, Nat.le_refl _⟩
 
 example (rounds initial : Nat) :
-    ⦃fun s => ⌜s = initial⌝⦄ spendRounds (m := Exec Id) rounds
-      ⦃⇓ total s => ⌜s + total = initial⌝⦄ :=
+    ⦃fun s => s = initial⦄ spendRounds (m := Exec Id) rounds
+      ⦃fun total s => s + total = initial⦄ :=
   spendRounds_correct (fun _ => refines_pure _) rounds initial
 
 #guard ((spend (m := Exec Id)).run 10).run == (10, 0)

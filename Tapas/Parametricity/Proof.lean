@@ -270,7 +270,6 @@ private partial def normalizeHead (e : Expr) : MetaM Expr := withIncRecDepth do
         let e' ← whnfCore e
         if e' != e then return some e'
         if let some v ← reduceNat? e then return some v
-        if let some v ← reduceNative? e then return some v
         unfoldDefinition? e
   match ← step? with
   | some e' => normalizeHead e'

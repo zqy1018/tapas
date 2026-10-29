@@ -4,8 +4,10 @@ import TapasTest.TestingUtils
 import TapasTest.Applications.Monad.Ghost.Basic
 meta import TapasTest.Applications.Monad.Ghost.Basic -- shake: keep (required by #guard/#eval)
 import Std.Tactic.Do
-import Std.Internal.Do
+import Std.WP
 import Std.Tactic.BVDecide.Normalize
+
+set_option experimental.vcgen true
 
 /-!
 Verify loops with invariants that observe their ghost state. The programs use only
@@ -16,18 +18,18 @@ for the for loop and `Option` for the while loop, whose semantics can represent 
 
 namespace TapasTest.Applications.Monad.Ghost.WP
 
-open Std.Do Basic
+open Std.WP Lean.Order Basic
 
 /-- A ghost update changes the state seen by assertions. -/
 @[spec]
 theorem ghost_spec {I σ : Type u} [GhostUpdateStep I σ]
-    {m : Type u → Type v} [Monad m] {ps : PostShape} [WPMonad m ps]
-    (i : I) (Q : PostCond PUnit (.arg σ ps)) :
-    ⦃(spred(fun g => Q.1 ⟨⟩ (GhostUpdateStep.step i g)))⦄
-    (MonadGhostOf.ghost i : StateT σ m PUnit)
-    ⦃Q⦄ := by
-  change Triple (modifyGet fun g => (PUnit.unit, GhostUpdateStep.step i g)) _ Q
-  exact Spec.modifyGet_StateT
+    {m : Type u → Type v} [Monad m] {Pred EPred : Type u}
+    [Assertion Pred] [Assertion EPred] [WPMonad m Pred EPred]
+    (i : I) (Q : PUnit → σ → Pred) (E : EPred) :
+    ⦃fun g => Q ⟨⟩ (GhostUpdateStep.step i g)⦄
+    (MonadGhostOf.ghost i : StateT σ m PUnit) ⦃Q; E⦄ := by
+  change Triple (modifyGet (m := StateT σ m) fun g => (PUnit.unit, GhostUpdateStep.step i g)) _ Q E
+  exact Spec.modifyGet_StateT _ _
 
 -- Keep the program polymorphic in the interpretation of its ghost updates.
 attribute [-instance] erasedGhost in
@@ -44,19 +46,18 @@ derive_parametric countLoop
 local instance countedStep : GhostUpdateStep Nat Nat where
   step n g := g + n
 
-set_option mvcgen.warning false in
 /-- The ghost counter records twice the number of completed iterations. -/
 theorem countLoop_spec (n initial : Nat) :
-    ⦃fun g => ⌜g = initial⌝⦄ countLoop (m := StateT Nat Id) n
-      ⦃⇓ result g => ⌜result = n ∧ g = initial + 2 * result⌝⦄ := by
-  mvcgen [countLoop] invariants
-  | inv1 => ⇓ (cursor, acc) g =>
-      ⌜acc = cursor.prefix.length ∧ g = initial + 2 * acc⌝
-  all_goals (mleave; simp_all [GhostUpdateStep.step] <;> omega)
+    ⦃fun g => g = initial⦄ countLoop (m := StateT Nat Id) n
+      ⦃fun result g => result = n ∧ g = initial + 2 * result⦄ := by
+  vcgen [countLoop] invariants
+  | inv1 => fun pref suff acc g =>
+      (acc = pref.length ∧ g = initial + 2 * acc)
+  all_goals (simp [GhostUpdateStep.step] at * <;> omega)
 
 /-- The WP proof also establishes the result of the execution with no ghost state. -/
 theorem countLoop_erased_result (n : Nat) : (countLoop (m := Id) n).run = n := by
-  have hwp := countLoop_spec n 0 0 rfl
+  have hwp := (countLoop_spec n 0).le_wp 0 rfl
   have herase := Erase.run_eq
     (countLoop.parametric n (Erase Nat Id) Erase.monadRel Erase.ghostRel) 0
   exact herase ▸ hwp.1
@@ -76,32 +77,40 @@ measure depends only on the mutable loop variables; the invariant may also read 
 
 open Lean.Order Tapas.Parametricity
 
+-- CHECK This thing seems general
 open scoped Tapas.Parametricity.PartialLoop in
 /-- A decreasing measure and a preserved invariant verify a terminating partial loop. -/
 @[spec]
-theorem partialLoop_spec {β : Type u} {m : Type u → Type v} {ps : PostShape}
-    [Monad m] [∀ α, CCPO (m α)] [MonoBind m] [WPMonad m ps]
+theorem partialLoop_spec {β : Type u} {m : Type u → Type v} {Pred EPred : Type u}
+    [Monad m] [∀ α, CCPO (m α)] [MonoBind m]
+    [Assertion Pred] [Assertion EPred] [WPMonad m Pred EPred] [Heyting Pred]
     {l : Lean.Loop} {init : β} {body : Unit → β → m (ForInStep β)}
-    (variant : WhileVariant β .pure) (inv : WhileInvariant β β ps)
-    (step : ∀ b, Triple (body () b) (inv.1 (.inl b))
+    (variant : Variant β Pred) (inv : WhileInvariant β Pred) (einv : EPred)
+    (step : ∀ b (mb : variant.γ), Triple (body () b) (variant.EvalsTo b mb ⊓ inv false b)
       (fun r => match r with
-        | .yield b' => spred(⌜(variant b').down < (variant b).down⌝ ∧ inv.1 (.inl b'))
-        | .done b' => inv.1 (.inr b'), inv.2)) :
-    Triple (forIn l init body) (inv.1 (.inl init))
-      (fun b => inv.1 (.inr b), inv.2) := by
-  change Triple (PartialLoop.loop body init) _ _
-  induction init using (measure fun b => (variant b).down).wf.induction with
-  | h b ih =>
+        | .yield b' => variant.EvalsBelow b' mb ⊓ inv false b'
+        | .done b' => inv true b') einv) :
+    Triple (forIn l init body) (inv false init) (fun b => inv true b) einv := by
+  change Triple (PartialLoop.loop body init) _ _ _
+  refine Triple.intro <| variant.le_of_total_le init ?_
+  refine iSup_le _ _ fun minit => ?_
+  suffices key : ∀ n, Acc variant.rel n → ∀ b,
+      Triple (PartialLoop.loop body b) (variant.EvalsTo b n ⊓ inv false b)
+        (fun b' => inv true b') einv from
+    (key minit (variant.wf.apply minit) init).le_wp
+  intro n hacc
+  induction hacc with
+  | intro n _ ih =>
+    intro b
     rw [PartialLoop.loop.eq_def]
-    refine Triple.bind (body () b) _ (step b) ?_
+    refine Triple.bind (body () b) _ _ (step b n) ?_
     intro r
     cases r with
-    | done b' => apply Triple.pure; exact SPred.entails.refl _
+    | done b' => exact Triple.pure b' PartialOrder.rel_refl
     | yield b' =>
-      apply Triple.iff.mpr
-      apply SPred.pure_elim SPred.and_elim_l
-      intro hlt
-      exact SPred.and_elim_r.trans (ih b' hlt)
+      refine Triple.intro <| iSup_meet_le fun mb' => ?_
+      rw [meet_comm (P := variant.EvalsTo b' mb'), meet_assoc]
+      exact ofProp_meet_le_left fun hlt => (ih mb' hlt b').le_wp
 
 attribute [-instance] erasedGhost in
 /-- Count with a while loop, recording two ghost ticks per iteration. -/
@@ -114,23 +123,21 @@ def countWhile (n : Nat) := infer_effects_partial% do
 
 derive_parametric countWhile
 
-set_option mvcgen.warning false in
 /-- The while invariant relates its mutable counter to the current ghost value. -/
 theorem countWhile_spec (n initial : Nat) :
-    ⦃fun g => ⌜g = initial⌝⦄ countWhile (m := StateT Nat Option) n
-      ⦃⇓ result g => ⌜result = n ∧ g = initial + 2 * result⌝⦄ := by
-  mvcgen [countWhile] invariants
-  | inv1 => fun acc => ⟨n - acc⟩
-  | inv2 => ⇓ cursor g => ⌜match cursor with
-      | .inl acc => acc ≤ n ∧ g = initial + 2 * acc
-      | .inr result => result = n ∧ g = initial + 2 * result⌝
-  all_goals (mleave; simp_all [GhostUpdateStep.step] <;> omega)
+    ⦃fun g => g = initial⦄ countWhile (m := StateT Nat Option) n
+      ⦃fun result g => result = n ∧ g = initial + 2 * result⦄ := by
+  vcgen [countWhile] invariants
+  | inv2 => Variant.ofMeasure fun acc => n - acc
+  | inv1 => fun
+    | false, acc, g => acc ≤ n ∧ g = initial + 2 * acc
+    | true, acc, g => acc = n ∧ g = initial + 2 * acc
+  all_goals (simp [GhostUpdateStep.step] at * <;> omega)
 
 #guard countWhile (m := StateT Nat Option) 0 7 == some (0, 7)
 #guard countWhile (m := StateT Nat Option) 5 7 == some (5, 17)
 #guard countWhile (m := Option) 5 == some 5
 
-set_option mvcgen.warning false in
 /-- Erasing the while loop's ghost state preserves its terminating result. -/
 theorem countWhile_erased_result (n : Nat) : countWhile (m := Option) n = some n := by
   have herase : Prod.fst <$> (countWhile (m := StateT Nat Option) n).run 0 =
@@ -139,15 +146,17 @@ theorem countWhile_erased_result (n : Nat) : countWhile (m := Option) n = some n
       (fun {_} => Erase.admissible)) 0
   -- Use erasure to turn the result equality into a WP goal for the projected run.
   -- The computation is still in `Option`: `Prod.fst <$> (countWhile ...).run 0`.
-  apply Std.Do.Option.of_wp_eq herase (fun result => result = some n)
+  apply Std.WP.Option.of_eq_wp herase (fun result => result = some n)
   -- Move the postcondition through `map` and `run`, obtaining the `StateT Nat Option`
   -- WP goal for `countWhile` with initial ghost state 0.
-  simp only [WP.map, WP.StateT_run]
+  apply WPMonad.map_le_wp_map (m := Option) Prod.fst _ _ _
+  change wp (countWhile (m := StateT Nat Option) n)
+    (fun result _ => some result = some n) (fun _ => none = some n) 0
   -- Reuse the loop specification. The remaining conditions establish the initial
   -- state and deduce the result equality from the stronger postcondition about result and ghost state.
   have hspec := countWhile_spec n 0
-  mvcgen [hspec]
-  all_goals (mleave; simp_all)
+  vcgen [hspec]
+  all_goals simp_all
 
 #guard_uses type countWhile ⊇ [MonadGhostOf]
 #guard_uses countWhile_spec ⊇ [partialLoop_spec, ghost_spec]
