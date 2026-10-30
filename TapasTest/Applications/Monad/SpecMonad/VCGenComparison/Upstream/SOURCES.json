@@ -1,0 +1,83 @@
+{
+  "commit": "ece9cbd7eb464db80ed17489c20f587c7c33e495",
+  "files": [
+    {
+      "path": "tests/bench/vcgen/cases/Cases/LetBinding.lean",
+      "local_file": "LetBinding.lean",
+      "sha256": "0f00036885b2b07819948e02509485cd89247070f4f12ae702719042d946f3f5",
+      "ported_sha256": "d4f481bcb302ae47252f9a104330537272782d34fd205a9ffd37e7efa8d35964",
+      "last_change": {
+        "sha": "dd8693c1c9d8cd3fc8102e3b2beded261cfb7b24",
+        "committer_utc": "2026-09-24T14:16:10Z",
+        "singapore": "2026-09-24T22:16:10+08:00",
+        "author_utc": "2026-09-24T14:16:10Z",
+        "subject": "feat: move `vcgen` to `Std.WP.Tactic` and deprecate the `Std.Do` proof mode (#15290)"
+      }
+    },
+    {
+      "path": "tests/bench/vcgen/cases/Cases/ReaderState.lean",
+      "local_file": "ReaderState.lean",
+      "sha256": "a4b3ed7b70a330847f5bb4a6beedc7606cd6942395955805f613505608446f1f",
+      "ported_sha256": "6c9f65e267c41ef5c0363b7ce677a83ca0e7fa65aaf9848944a22ee837bac8ec",
+      "last_change": {
+        "sha": "dd8693c1c9d8cd3fc8102e3b2beded261cfb7b24",
+        "committer_utc": "2026-09-24T14:16:10Z",
+        "singapore": "2026-09-24T22:16:10+08:00",
+        "author_utc": "2026-09-24T14:16:10Z",
+        "subject": "feat: move `vcgen` to `Std.WP.Tactic` and deprecate the `Std.Do` proof mode (#15290)"
+      }
+    },
+    {
+      "path": "tests/bench/vcgen/cases/Cases/PurePrecond.lean",
+      "local_file": "PurePrecond.lean",
+      "sha256": "a8d8dd530d84e50526837b6fa42798f752d6437383f6eb05c1a1342cd403ecae",
+      "ported_sha256": "a405320685d2d8cf5cb4de082ce274a3afb21b3a978e538bffe2c8ad5263a2dd",
+      "last_change": {
+        "sha": "dd8693c1c9d8cd3fc8102e3b2beded261cfb7b24",
+        "committer_utc": "2026-09-24T14:16:10Z",
+        "singapore": "2026-09-24T22:16:10+08:00",
+        "author_utc": "2026-09-24T14:16:10Z",
+        "subject": "feat: move `vcgen` to `Std.WP.Tactic` and deprecate the `Std.Do` proof mode (#15290)"
+      }
+    },
+    {
+      "path": "tests/bench/vcgen/cases/Cases/GetThrowSet.lean",
+      "local_file": "GetThrowSet.lean",
+      "sha256": "35c3d93a6511924cf26757d19972711ec1162e6ba46673f65b64e60577be2aa7",
+      "ported_sha256": "5d09e98e9436f1c2c11a9bea75e76d004c7babf7d42253ddb2a74d337fb283ef",
+      "last_change": {
+        "sha": "7aeab8349e3119dfd554e627be315988511690f2",
+        "committer_utc": "2026-10-19T16:07:08Z",
+        "singapore": "2026-10-20T00:07:08+08:00",
+        "author_utc": "2026-10-19T16:07:08Z",
+        "subject": "feat: substitute a pure precondition `x = t` during `vcgen` (#15796)"
+      }
+    },
+    {
+      "path": "tests/bench/vcgen/cases/Cases/DiteSplit.lean",
+      "local_file": "DiteSplit.lean",
+      "sha256": "a0d41b8dd8c01523916b609a2ab35ad55ec0b64865ed1a4ec143d181fe804272",
+      "ported_sha256": "2812a0aca4b493bf639b4ba67753874891663bcbd095e89c0d4a3e27182c6c21",
+      "last_change": {
+        "sha": "dd8693c1c9d8cd3fc8102e3b2beded261cfb7b24",
+        "committer_utc": "2026-09-24T14:16:10Z",
+        "singapore": "2026-09-24T22:16:10+08:00",
+        "author_utc": "2026-09-24T14:16:10Z",
+        "subject": "feat: move `vcgen` to `Std.WP.Tactic` and deprecate the `Std.Do` proof mode (#15290)"
+      }
+    },
+    {
+      "path": "tests/bench/vcgen/cases/Cases/MatchSplit.lean",
+      "local_file": "MatchSplit.lean",
+      "sha256": "77d375c67420c79869b373005155d86fb4a19e8bf6a9cf9e49111acc7c5a0080",
+      "ported_sha256": "af1b03575be255afac7335113f0e170a0b5995af900a3358eb20a847b79e5ed7",
+      "last_change": {
+        "sha": "dd8693c1c9d8cd3fc8102e3b2beded261cfb7b24",
+        "committer_utc": "2026-09-24T14:16:10Z",
+        "singapore": "2026-09-24T22:16:10+08:00",
+        "author_utc": "2026-09-24T14:16:10Z",
+        "subject": "feat: move `vcgen` to `Std.WP.Tactic` and deprecate the `Std.Do` proof mode (#15290)"
+      }
+    }
+  ]
+}

@@ -1,0 +1,191 @@
+--- tests/bench/vcgen/cases/Cases/AddSubCancel.lean
++++ AddSubCancel.lean
+@@ -1,5 +1,14 @@
+-import Lean
+-import Std.WP
++/-
++Source: https://github.com/leanprover/lean4/blob/5fe62b1fb49e0626b02c5796863ac7f759e6df48/tests/bench/vcgen/cases/Cases/AddSubCancel.lean
++License: Apache-2.0; see LICENSE in this directory.
++Local changes: module-system visibility and execution phases only.
++-/
++module
++
++public import Lean
++public import Std.WP
++
++@[expose] public section
+ 
+ /-!
+ Basic add/sub loop in `StateM`: each `step` adds then subtracts the same value, so the
+--- tests/bench/vcgen/cases/Cases/AddSubCancelDeep.lean
++++ AddSubCancelDeep.lean
+@@ -1,5 +1,14 @@
+-import Lean
+-import Std.WP
++/-
++Source: https://github.com/leanprover/lean4/blob/5fe62b1fb49e0626b02c5796863ac7f759e6df48/tests/bench/vcgen/cases/Cases/AddSubCancelDeep.lean
++License: Apache-2.0; see LICENSE in this directory.
++Local changes: module-system visibility and execution phases only.
++-/
++module
++
++public import Lean
++public import Std.WP
++
++@[expose] public section
+ 
+ /-!
+ Same loop as `AddSubCancel` but threaded through a deep monad transformer stack.
+--- tests/bench/vcgen/lib/Baseline.lean
++++ Baseline.lean
+@@ -1,4 +1,14 @@
+-import Lean
++/-
++Source: https://github.com/leanprover/lean4/blob/5fe62b1fb49e0626b02c5796863ac7f759e6df48/tests/bench/vcgen/lib/Baseline.lean
++License: Apache-2.0; see LICENSE in this directory.
++Local changes: module-system visibility and execution phases only.
++-/
++module
++
++public import Lean
++public meta import Lean
++
++@[expose] public section
+ 
+ -- This is a copy of `tests/bench/sym/shallow_add_sub_cancel.lean` with the intention to precompile
+ -- it for better comparison to the `VCGen` approach.
+@@ -63,6 +73,8 @@
+ theorem unit_map : (fun _ : Unit => PUnit.unit) <$> (k : StateM Nat Unit) = k := by
+  simp
+ 
++meta section
++
+ def mkSimpMethods (declNames : Array Name) : MetaM Sym.Simp.Methods := do
+   let rewrite ← Sym.mkSimprocFor declNames Sym.Simp.dischargeSimpSelf
+   return {
+@@ -107,3 +119,5 @@
+   let .goal mvarId ← Sym.simpGoal mvarId postMethods | failure
+   mvarId.assumption
+   return
++
++end
+--- tests/bench/vcgen/lib/Driver.lean
++++ Driver.lean
+@@ -1,3 +1,8 @@
++/-
++Source: https://github.com/leanprover/lean4/blob/5fe62b1fb49e0626b02c5796863ac7f759e6df48/tests/bench/vcgen/lib/Driver.lean
++License: Apache-2.0; see LICENSE in this directory.
++Local changes: module-system visibility and execution phases only.
++-/
+ /-
+ Copyright (c) 2026 Lean FRO LLC. All rights reserved.
+ Released under Apache 2.0 license as described in the file LICENSE.
+@@ -5,24 +10,28 @@
+ -/
+ module
+ public import Lean
++public meta import Lean
+ public import Std.WP
+ public import Std.WP.Triple.SpecLemmas
++
++public section
++
+ open Lean Parser Meta Elab Tactic Sym
+ 
+ /-- Runs `k` and additionally returns its wall-clock time in hundredths of a millisecond. -/
+-def timeItMs (k : MetaM α) : MetaM (α × UInt64) := do
++meta def timeItMs (k : MetaM α) : MetaM (α × UInt64) := do
+   let startTime ← IO.monoNanosNow
+   let a ← k
+   let endTime ← IO.monoNanosNow
+   return (a, ((endTime - startTime) / 10000).toUInt64)
+ 
+ /-- Formats a time in hundredths of a millisecond as milliseconds with two decimal places. -/
+-def fmtMs (hms : UInt64) : String :=
++meta def fmtMs (hms : UInt64) : String :=
+   let frac := hms % 100
+   s!"{hms / 100}.{if frac < 10 then "0" else ""}{frac}"
+ 
+ /-- Helper function for executing a tactic `k` for solving `$(goal) n`. -/
+-def driver (goal : Name) (unfold : List Name) (n : Nat) (discharge : MetaM (TSyntax `tactic)) (k : MVarId → MetaM (List MVarId)) : MetaM Unit := do
++meta def driver (goal : Name) (unfold : List Name) (n : Nat) (discharge : MetaM (TSyntax `tactic)) (k : MVarId → MetaM (List MVarId)) : MetaM Unit := do
+   let mvar ← mkFreshExprMVar (mkApp (mkConst goal) (mkNatLit n))
+   let (mvarId, _unfoldMs) ← timeItMs do SymM.run do
+     let mvarId ← preprocessMVar mvar.mvarId!
+@@ -61,7 +70,7 @@
+   msg := msg ++ s!", kernel: {fmtMs kernelMs} ms"
+   IO.println msg
+ 
+-def solveUsingTactic (goal : Name) (unfold : List Name) (n : Nat) (solve : MetaM (TSyntax `tactic)) (discharge : MetaM (TSyntax `tactic)) : MetaM Unit := do
++meta def solveUsingTactic (goal : Name) (unfold : List Name) (n : Nat) (solve : MetaM (TSyntax `tactic)) (discharge : MetaM (TSyntax `tactic)) : MetaM Unit := do
+   driver goal unfold n discharge fun mvarId => do
+     let (mvarIds, _) ← Lean.Elab.runTactic mvarId (← solve).raw {} {}
+     return mvarIds
+@@ -71,12 +80,12 @@
+ `unfold` is a list of `simp` lemmas to apply in order to unfold `goal n`.
+ For many benchmarks, this is `[step, loop]`.
+ -/
+-public def runBenchUsingTactic (goal : Name) (unfold : List Name) (solve : MetaM (TSyntax `tactic)) (discharge : MetaM (TSyntax `tactic)) (sizes : List Nat) : MetaM Unit := do
++public meta def runBenchUsingTactic (goal : Name) (unfold : List Name) (solve : MetaM (TSyntax `tactic)) (discharge : MetaM (TSyntax `tactic)) (sizes : List Nat) : MetaM Unit := do
+   for n in sizes do
+     resetCache
+     solveUsingTactic goal unfold n solve discharge
+ 
+-def solveUsingSym (goal : Name) (unfold : List Name) (n : Nat) (solve : MVarId → SymM (List MVarId)) (discharge : MetaM (TSyntax `tactic)) : MetaM Unit := do
++meta def solveUsingSym (goal : Name) (unfold : List Name) (n : Nat) (solve : MVarId → SymM (List MVarId)) (discharge : MetaM (TSyntax `tactic)) : MetaM Unit := do
+   driver goal unfold n discharge fun mvarId => SymM.run do solve mvarId
+ 
+ /--
+@@ -84,7 +93,7 @@
+ `unfold` is a list of `simp` lemmas to apply in order to unfold `goal n`.
+ For many benchmarks, this is `[step, loop]`.
+ -/
+-public def runBenchUsingSym (goal : Name) (unfold : List Name) (solve : MVarId → SymM (List MVarId)) (discharge : MetaM (TSyntax `tactic)) (sizes : List Nat) : MetaM Unit := do
++public meta def runBenchUsingSym (goal : Name) (unfold : List Name) (solve : MVarId → SymM (List MVarId)) (discharge : MetaM (TSyntax `tactic)) (sizes : List Nat) : MetaM Unit := do
+   for n in sizes do
+     resetCache
+     solveUsingSym goal unfold n solve discharge
+--- tests/bench/vcgen/vcgen_add_sub_cancel.lean
++++ VCGenPlain.lean
+@@ -1,10 +1,17 @@
++/-
++Source: https://github.com/leanprover/lean4/blob/5fe62b1fb49e0626b02c5796863ac7f759e6df48/tests/bench/vcgen/vcgen_add_sub_cancel.lean
++License: Apache-2.0; see LICENSE in this directory.
++Local changes: module header and import paths only; original sizes and tactics retained.
++-/
++module
++
+ /-
+ Copyright (c) 2026 Lean FRO LLC. All rights reserved.
+ Released under Apache 2.0 license as described in the file LICENSE.
+ Authors: Sebastian Graf
+ -/
+-import Cases.AddSubCancel
+-import Driver
++import TapasTest.Applications.Monad.SpecMonad.VCGenComparison.Upstream.AddSubCancel
++import TapasTest.Applications.Monad.SpecMonad.VCGenComparison.Upstream.Driver
+ 
+ set_option experimental.vcgen true
+ 
+--- tests/bench/vcgen/vcgen_add_sub_cancel_deep.lean
++++ VCGenDeep.lean
+@@ -1,10 +1,17 @@
++/-
++Source: https://github.com/leanprover/lean4/blob/5fe62b1fb49e0626b02c5796863ac7f759e6df48/tests/bench/vcgen/vcgen_add_sub_cancel_deep.lean
++License: Apache-2.0; see LICENSE in this directory.
++Local changes: module header and import paths only; original sizes and tactics retained.
++-/
++module
++
+ /-
+ Copyright (c) 2026 Lean FRO LLC. All rights reserved.
+ Released under Apache 2.0 license as described in the file LICENSE.
+ Authors: Sebastian Graf
+ -/
+-import Cases.AddSubCancelDeep
+-import Driver
++import TapasTest.Applications.Monad.SpecMonad.VCGenComparison.Upstream.AddSubCancelDeep
++import TapasTest.Applications.Monad.SpecMonad.VCGenComparison.Upstream.Driver
+ 
+ set_option experimental.vcgen true
+ 

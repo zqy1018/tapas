@@ -1,0 +1,53 @@
+{
+  "commit": "5fe62b1fb49e0626b02c5796863ac7f759e6df48",
+  "files": [
+    {
+      "path": "tests/bench/vcgen/cases/Cases/AddSubCancel.lean",
+      "sha256": "90ce083ed3716601789433672f6fd2bcc2af0c39ba4e9688434c01aee34e0f79",
+      "bytes": 1475,
+      "local_file": "AddSubCancel.lean",
+      "ported_sha256": "113fa981497ad005fc42062bb24303f8128eadf64716478dac7dd7763a28a841"
+    },
+    {
+      "path": "tests/bench/vcgen/cases/Cases/AddSubCancelDeep.lean",
+      "sha256": "503e385ea662c5c99a7a3c0a87e333a260b44d086526216bfcf82053e876690e",
+      "bytes": 1139,
+      "local_file": "AddSubCancelDeep.lean",
+      "ported_sha256": "db77ce8600d97c47460ec9369484572c403310cf6fa15d9fce8c63e34e3f20fc"
+    },
+    {
+      "path": "tests/bench/vcgen/lib/Baseline.lean",
+      "sha256": "c7dafb13c8954de9c081436fd7af4dd15cb41844ec0b64a5fd47cd180e1a2977",
+      "bytes": 4337,
+      "local_file": "Baseline.lean",
+      "ported_sha256": "84b51f29719f0eb2d61be818a1e98e0b1e444ce33642b0f1a583b9f79f82ed88"
+    },
+    {
+      "path": "tests/bench/vcgen/lib/Driver.lean",
+      "sha256": "1784ab79191abae3facd914956c4d72aa79dd9b6ef86e815bcb2c2272438399d",
+      "bytes": 4287,
+      "local_file": "Driver.lean",
+      "ported_sha256": "4214f58620cf6e401ed6316953d058d747da8128a90467510ccc6a7d37a8f184"
+    },
+    {
+      "path": "LICENSE",
+      "sha256": "8b28515ffffc5c0fe2807d8ae3735b00b324d9b7ce807dd63ff6ac8922fbce7e",
+      "bytes": 9160,
+      "ported_sha256": "8b28515ffffc5c0fe2807d8ae3735b00b324d9b7ce807dd63ff6ac8922fbce7e"
+    },
+    {
+      "path": "tests/bench/vcgen/vcgen_add_sub_cancel.lean",
+      "local_file": "VCGenPlain.lean",
+      "sha256": "d38f48ace9299fa02ceb929411a20cbf2455f6e0503efa3519e200698fe1b686",
+      "ported_sha256": "1ec976f4179b479de1eb54e9eda3d281649a9fee78d76464b2a43fcbb92c1f21",
+      "bytes": 479
+    },
+    {
+      "path": "tests/bench/vcgen/vcgen_add_sub_cancel_deep.lean",
+      "local_file": "VCGenDeep.lean",
+      "sha256": "a98fbbefa0cf13528b49f7717115ab95a42d61598304200083621813248191ab",
+      "ported_sha256": "e6dff246453474d1c763f2ac714b94f71074d309cee96dc876d911d2d839c324",
+      "bytes": 485
+    }
+  ]
+}

@@ -1,0 +1,114 @@
+--- tests/bench/vcgen/cases/Cases/LetBinding.lean
++++ LetBinding.lean
+@@ -1,5 +1,14 @@
+-import Lean
+-import Std.WP
++/-
++Source: https://github.com/leanprover/lean4/blob/ece9cbd7eb464db80ed17489c20f587c7c33e495/tests/bench/vcgen/cases/Cases/LetBinding.lean
++License: Apache-2.0; see LICENSE in this directory.
++Local changes: module-system visibility only; definitions and proofs are unchanged.
++-/
++module
++
++public import Lean
++public import Std.WP
++
++@[expose] public section
+ 
+ /-!
+ Same add/sub loop as `AddSubCancel` but with a pure `let offset := ...` binding inside `step`.
+--- tests/bench/vcgen/cases/Cases/ReaderState.lean
++++ ReaderState.lean
+@@ -1,5 +1,14 @@
+-import Lean
+-import Std.WP
++/-
++Source: https://github.com/leanprover/lean4/blob/ece9cbd7eb464db80ed17489c20f587c7c33e495/tests/bench/vcgen/cases/Cases/ReaderState.lean
++License: Apache-2.0; see LICENSE in this directory.
++Local changes: module-system visibility only; definitions and proofs are unchanged.
++-/
++module
++
++public import Lean
++public import Std.WP
++
++@[expose] public section
+ 
+ /-!
+ A `ReaderT Nat <| StateM Nat` combination. Each `step` reads the reader `r`, adds it to the
+--- tests/bench/vcgen/cases/Cases/PurePrecond.lean
++++ PurePrecond.lean
+@@ -1,5 +1,14 @@
+-import Lean
+-import Std.WP
++/-
++Source: https://github.com/leanprover/lean4/blob/ece9cbd7eb464db80ed17489c20f587c7c33e495/tests/bench/vcgen/cases/Cases/PurePrecond.lean
++License: Apache-2.0; see LICENSE in this directory.
++Local changes: module-system visibility only; definitions and proofs are unchanged.
++-/
++module
++
++public import Lean
++public import Std.WP
++
++@[expose] public section
+ 
+ /-!
+ Exercises pure propositional hypotheses in preconditions. `flipp` flips a `Bool` state, but
+--- tests/bench/vcgen/cases/Cases/GetThrowSet.lean
++++ GetThrowSet.lean
+@@ -1,5 +1,14 @@
+-import Lean
+-import Std.WP
++/-
++Source: https://github.com/leanprover/lean4/blob/ece9cbd7eb464db80ed17489c20f587c7c33e495/tests/bench/vcgen/cases/Cases/GetThrowSet.lean
++License: Apache-2.0; see LICENSE in this directory.
++Local changes: module-system visibility only; definitions and proofs are unchanged.
++-/
++module
++
++public import Lean
++public import Std.WP
++
++@[expose] public section
+ 
+ /-!
+ Exception handling with `ExceptT String <| StateM Nat`: each `step` conditionally throws and
+--- tests/bench/vcgen/cases/Cases/DiteSplit.lean
++++ DiteSplit.lean
+@@ -1,5 +1,14 @@
+-import Lean
+-import Std.WP
++/-
++Source: https://github.com/leanprover/lean4/blob/ece9cbd7eb464db80ed17489c20f587c7c33e495/tests/bench/vcgen/cases/Cases/DiteSplit.lean
++License: Apache-2.0; see LICENSE in this directory.
++Local changes: module-system visibility only; definitions and proofs are unchanged.
++-/
++module
++
++public import Lean
++public import Std.WP
++
++@[expose] public section
+ 
+ /-!
+ Dependent if-then-else (`if h : cond then ...`) inside an `ExceptT String <| StateM Nat`
+--- tests/bench/vcgen/cases/Cases/MatchSplit.lean
++++ MatchSplit.lean
+@@ -1,5 +1,14 @@
+-import Lean
+-import Std.WP
++/-
++Source: https://github.com/leanprover/lean4/blob/ece9cbd7eb464db80ed17489c20f587c7c33e495/tests/bench/vcgen/cases/Cases/MatchSplit.lean
++License: Apache-2.0; see LICENSE in this directory.
++Local changes: module-system visibility only; definitions and proofs are unchanged.
++-/
++module
++
++public import Lean
++public import Std.WP
++
++@[expose] public section
+ 
+ /-!
+ Pattern matching where the discriminant *is* the symbolic state (`match s with ...` after
