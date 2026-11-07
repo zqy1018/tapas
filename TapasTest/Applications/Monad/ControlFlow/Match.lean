@@ -222,8 +222,41 @@ def sharedDependentMatch (n : Nat) (xs : Fin n → Nat) := infer_effects% do
     tick
 derive_parametric sharedDependentMatch
 
+-- Unlike `m4`, the named discriminant is a local `let`, and the equation is used.
+def namedLetMatch (input : Option Nat) := infer_effects% do
+  let o := input
+  match h : o with
+  | some _ =>
+    let n := o.get (by simp [h])
+    set n
+    pure n
+  | none => getThe Nat
+derive_parametric namedLetMatch
+
+example : Option Nat → {m : Type → Type} → [Monad m] → [MonadStateOf Nat m] → m Nat :=
+  @namedLetMatch
+
+-- Mutation adds a continuation around the named match in the declaration frontend.
+infer_effects
+def namedMutableMatch (start : Nat) : m Nat := do
+  let mut n := start
+  match _h : n with
+  | 0 => set n; n := 1
+  | k + 1 => set k; n := k
+  pure n
+derive_parametric namedMutableMatch
+
+example : {m : Type → Type} → [Monad m] → [MonadStateOf Nat m] → Nat → m Nat :=
+  @namedMutableMatch
+
+#guard (namedLetMatch (m := StateM Nat) (some 7) 9).run == (7, 7)
+#guard (namedLetMatch (m := StateM Nat) none 9).run == (9, 9)
+#guard (namedMutableMatch (m := StateM Nat) 0 9).run == (1, 0)
+#guard (namedMutableMatch (m := StateM Nat) 4 9).run == (3, 3)
+
 #guard_parametric m1, m2, m3, m4, m5, m6, m7, m8, m9, m10, m11, m12, m14, m15
 #guard_parametric overlappingMatches, nestedEquations, appliedMatcher, sharedDependentMatch
+#guard_parametric namedLetMatch, namedMutableMatch
 
 -- The current proofs use about 800–5,700 objects; leave room for ordinary changes.
 #guard_num_objs overlappingMatches.parametric, nestedEquations.parametric,

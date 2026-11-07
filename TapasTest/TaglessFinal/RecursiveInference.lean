@@ -79,6 +79,24 @@ example : ({A B : Type} → [Convert A B] → List A → List B) := @convAll
 
 #guard convAll (A := Nat) (B := String) [1, 2] == ["1", "2"]
 
+-- Named branches over local lets also infer interfaces in the declaration frontend.
+infer_final (A : Type u)
+def namedBranches (n : Nat) (input : Option Nat) : A :=
+  let k := n + 1
+  if h : k < 5 then
+    let o := input
+    match ho : o with
+    | some _ => Arithmetic.add (Arithmetic.literal (Fin.mk k h).val)
+        (Arithmetic.literal (o.get (by simp [ho])))
+    | none => Arithmetic.literal k
+  else Arithmetic.literal 5
+
+example : {A : Type u} → [Arithmetic A] → Nat → Option Nat → A := @namedBranches
+
+#guard namedBranches (A := Nat) 1 (some 7) == 9
+#guard namedBranches (A := Nat) 1 none == 2
+#guard namedBranches (A := Nat) 5 (some 7) == 5
+
 /-! ## Boundaries -/
 
 class Config where

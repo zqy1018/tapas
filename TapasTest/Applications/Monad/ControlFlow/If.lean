@@ -112,6 +112,44 @@ def i13 := infer_effects% do
   pure n
 derive_parametric i13
 
+-- A named condition on a local `let` used to hide the missing state instance.
+set_option linter.unusedVariables false in
+def namedLet := infer_effects% do
+  let n := 0
+  if h : n < 5 then set n else pure ()
+derive_parametric namedLet
+
+example : {m : Type → Type} → [Monad m] → [MonadStateOf Nat m] → m PUnit := @namedLet
+
+-- The hypothesis is also available when the operation's argument needs a bound proof.
+def namedIndex (xs : Array Nat) (i : Nat) := infer_effects% do
+  let j := i
+  if h : j < xs.size then set xs[j] else pure ()
+derive_parametric namedIndex
+
+example : Array Nat → Nat → {m : Type → Type} → [Monad m] →
+    [MonadStateOf Nat m] → m PUnit := @namedIndex
+
+-- The declaration frontend must collect the same instance through mutable branches.
+infer_effects
+def namedMutableIf (xs : Array Nat) : m Nat := do
+  let mut i := 0
+  if h : i < xs.size then
+    set xs[i]
+    i := i + 1
+  pure i
+derive_parametric namedMutableIf
+
+example : {m : Type → Type} → [Monad m] → [MonadStateOf Nat m] → Array Nat → m Nat :=
+  @namedMutableIf
+
+#guard (namedLet (m := StateM Nat) 9).run == ((), 0)
+#guard (namedIndex (m := StateM Nat) #[2, 7] 1 9).run == ((), 7)
+#guard (namedIndex (m := StateM Nat) #[2, 7] 2 9).run == ((), 9)
+#guard (namedMutableIf (m := StateM Nat) #[4, 8] 9).run == (1, 4)
+#guard (namedMutableIf (m := StateM Nat) #[] 9).run == (0, 9)
+
 #guard_parametric i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12, i13
+#guard_parametric namedLet, namedIndex, namedMutableIf
 
 end TapasTest.Applications.Monad.ControlFlow.If

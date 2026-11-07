@@ -38,7 +38,8 @@ def simplifyAndAbstractMVar (mv : Expr)
   (mvname : Name) (keepBodyIf : Expr → TermElabM Bool := fun _ => return true)
   (cfg : AbstractTCArgsConfig := {}) : TermElabM (Option AbstractTCArg) := do
   let ty ← /- Meta.reduce (skipTypes := false) $ ← -/ Meta.inferType mv
-  Meta.forallTelescope ty fun ys body => do
+  -- Local lets can hide further binders, such as a named branch's hypothesis.
+  Meta.forallTelescopeReducing ty fun ys body => do
     -- IMPORTANT: `body` can still hold an assigned metavariable applied to the binders
     -- it was abstracted over (`MonadStateOf (?σ n) m` with `?σ := fun _ => Nat`), so the
     -- binders it really depends on only show up after instantiation.
@@ -100,17 +101,17 @@ where
       else
         return false
 
-/- A delayed assignment `?m #[xs] := ?pending` stands for `?m := fun xs => ?pending`.
-Lean only carries it out once the value of `?pending` is *ground*, because a metavariable
-still sitting in that value could later be assigned a term mentioning `xs`, which the
-abstraction would put out of scope. The values here are final -- elaboration is over, and
-nothing else will assign into them -- and the metavariables they still hold are the target
-instances, which are passed explicitly rather than assigned. Carrying the assignments out
-is therefore the abstraction Lean would itself perform, and leaving them would leave the
-body uninstantiable for good.
+/- Tolerant elaboration can leave `?m #[xs] := ?pending` with an assigned `?pending`
+whose value still contains missing typeclass instances. `instantiateMVars` only expands
+this delayed substitution once the value is ground (no unassigned expression metavariables).
+Here those holes must become parameters, so the delayed assignment remains stuck;
+`simplifyAndAbstractMVar` does not handle such assignments either.
 
-Leaving one behind would also break `simplifyAndAbstractMVar`, which says outright that it
-does not handle delayed assignments. -/
+We replace it with an ordinary assignment by abstracting `xs` from the known value.
+`mkLambdaFVars` also abstracts the remaining metavariables' dependencies on `xs`, so later
+assignments cannot introduce out-of-scope references to these variables. This lets
+`instantiateMVars` expose the value for instance abstraction. Local let variables in `xs`
+need an extra argument binder, as explained below. -/
 /-- Carry out the delayed assignments whose value is already known, so that
 `instantiateMVars` can eliminate them. -/
 private partial def collapseDelayedAssignments (e : Expr) : MetaM Unit := do
@@ -120,7 +121,49 @@ private partial def collapseDelayedAssignments (e : Expr) : MetaM Unit := do
       let some delayed ← getDelayedMVarAssignment? mvarId | continue
       unless ← delayed.mvarIdPending.isAssigned do continue
       mvarId.assign (← delayed.mvarIdPending.withContext do
-        Meta.mkLambdaFVars delayed.fvars (← instantiateMVars (.mvar delayed.mvarIdPending)))
+        /- Here `?m` denotes `Expr.mvar mvarId`, and `delayed` is its delayed-assignment
+        record. As above, `?pending` denotes `Expr.mvar delayed.mvarIdPending`.
+        `delayed.fvars` records the local variables of `?pending` that must be supplied
+        as arguments to `?m`. These variables are absent from `?m`'s own local context.
+        An entry may be a variable defined by a local `let`.
+
+        For example, suppose `?pending : x = 0` has the local definition `x : Nat := 0`,
+        and `delayed.fvars = #[x]`. Then `?m` has type
+        ```
+        Nat → (let x : Nat := 0; x = 0)
+        ```
+        Lean represents `?pending` by the application `?m x`. If `body` is the assigned
+        value of `?pending`, `mkLambdaFVars #[x] body` produces `let x := 0; body`, binding
+        the occurrences of the original local `x` in `body`. This is a proof, not a
+        function accepting the argument in `?m x`. We instead assign
+        ```
+        ?m := fun (x : Nat) => let x : Nat := 0; body
+        ```
+        This is the general pattern for local let declarations: the extra lambda
+        parameter is unused. `mkLambdaFVars` binds the original occurrences of `x`
+        in `body` to the inner let, which shadows the outer `x` in the displayed term.
+        The lambda only accepts the argument in `?m x`. The let keeps `x` definitionally
+        equal to `0`, which `body` may rely on; using `fun x => body` instead would
+        lose this equality.
+
+        Processing binders from right to left preserves their dependencies.
+        This mirrors `mkAuxMVarType` in `MetavarContext.lean`, which inserts a forall
+        before the let for `syntheticOpaque` metavariables. `decl.isLet` excludes `have`
+        (`nondep := true`), which `mkLambdaFVars` already turns into an ordinary lambda. -/
+        let value ← instantiateMVars (.mvar delayed.mvarIdPending)
+        let hasLet ← delayed.fvars.anyM fun fvar => do
+          return fvar.isFVar && (← fvar.fvarId!.getDecl).isLet
+        if !hasLet then
+          Meta.mkLambdaFVars delayed.fvars value
+        else
+          delayed.fvars.foldrM (init := value) fun fvar value => do
+            let value ← Meta.mkLambdaFVars #[fvar] value
+            if fvar.isFVar then
+              let decl ← fvar.fvarId!.getDecl
+              if decl.isLet then
+                -- The extra lambda must not capture existing bound-variable references.
+                return Lean.mkLambda decl.userName .default decl.type (value.liftLooseBVars 0 1)
+            return value)
       progress := true
   -- Collapsing one assignment can expose another nested in its value.
   if progress then collapseDelayedAssignments e

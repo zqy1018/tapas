@@ -179,4 +179,61 @@ def annotated := infer_final% (A : Type) => (Literal.lit 2 : A)
 
 example : {A : Type} → [Literal A] → A := @annotated
 
+-- A local `let` before a named condition must not hide either branch's interface.
+def namedIf (n : Nat) := infer_final% (A : Type) =>
+  let k := n + 1
+  if h : k < 5 then Literal.lit (A := A) (Fin.mk k h).val else Literal.lit (A := A) 5
+
+example : Nat → {A : Type} → [Literal A] → A := @namedIf
+
+example : namedIf 1 (A := Nat) = 2 := rfl
+example : namedIf 5 (A := Nat) = 5 := rfl
+
+-- The equation from a let-bound discriminant can also be used inside the operation.
+def namedMatch (input : Option Nat) := infer_final% (A : Type) =>
+  let o := input
+  match h : o with
+  | some _ => Literal.lit (A := A) (o.get (by simp [h]))
+  | none => Literal.lit (A := A) 0
+
+example : Option Nat → {A : Type} → [Literal A] → A := @namedMatch
+
+example : namedMatch (some 7) (A := Nat) = 7 := rfl
+example : namedMatch none (A := Nat) = 0 := rfl
+
+-- A delayed match result under a local `let` also occurs without a named equation.
+def letMatch (input : Option Nat) := infer_final% (A : Type) =>
+  let o := input
+  match o with
+  | some n => Literal.lit (A := A) n
+  | none => Literal.lit (A := A) 0
+
+example : Option Nat → {A : Type} → [Literal A] → A := @letMatch
+
+example : letMatch (some 7) (A := Nat) = 7 := rfl
+example : letMatch none (A := Nat) = 0 := rfl
+
+-- Delayed assignments may capture an ordinary parameter followed by several local lets.
+def nestedLetMatch (input : Option Nat) := infer_final% (A : Type) =>
+  fun offset : Nat =>
+    let shifted := input.map (· + offset)
+    let o := shifted
+    match h : o with
+    | some _ => Literal.lit (A := A) (o.get (by simp [h]))
+    | none => Literal.lit (A := A) offset
+
+example : Option Nat → {A : Type} → [Literal A] → Nat → A := @nestedLetMatch
+
+example : nestedLetMatch (some 7) (A := Nat) 3 = 10 := rfl
+example : nestedLetMatch none (A := Nat) 3 = 3 := rfl
+
+-- Preserve the let's definition when the result type depends on the discriminant.
+def namedIndexedMatch (b : Bool) := infer_final% (repr : Bool → Type) =>
+  let flag := b
+  (match _h : flag with
+    | true => At.value (repr := repr) (i := true)
+    | false => At.value (repr := repr) (i := false) : repr flag)
+
+example : (b : Bool) → {repr : Bool → Type} → [At repr] → repr b := @namedIndexedMatch
+
 end TapasTest.TaglessFinal.Inference
