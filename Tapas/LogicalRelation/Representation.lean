@@ -189,8 +189,13 @@ partial def sharedRepresentationLevels (representations : Array Expr) (type : Ex
         if let some info := getRelator? env name then
           -- `T = F as`, mentioning a representation and using a registered relator
           let sharedLevels ← type.getAppArgs.zip info.relationParamIdxs |>.foldlM (init := sharedLevels) fun s (arg, lifted) => do
-            if lifted.isSome
-            then sharedRepresentationLevels representations arg s selection
+            if lifted.isSome then
+              let t ← inferType arg
+              -- A lifted type family is related at each shared index, as a representation is,
+              -- and the scan continues on the family applied to those indices.
+              let s ← sharedIndexLevels t s
+              forallTelescopeReducing t fun indices _ =>
+                sharedRepresentationLevels representations (mkAppN arg indices) s selection
             else pure (collectLevelParams s arg)
           return sharedLevels
     -- Independent leaves and unsupported shapes: conservatively retain all

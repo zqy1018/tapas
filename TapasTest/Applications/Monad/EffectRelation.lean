@@ -302,6 +302,86 @@ derive_effect_rel Bagged
 -- Unfolding `Bag` would have produced `ListRel` and no mention of the registered relator.
 #guard_uses type Bagged.Rel.bag ⊇ [Bag.Rel]
 
+/- A relator can also lift a type family, such as the monad of a monad transformer, by a
+relation at each shared index. Where that argument is the monad being related, the relator
+receives its base relation. -/
+inductive Script (m : Type u → Type v) (α : Type u) where
+  | pure : α → Script m α
+  | step {β : Type u} : m β → (β → Script m α) → Script m α
+
+inductive Script.Rel {m : Type u → Type v} {n : Type u → Type w} (R : ComputationRelation m n)
+    {α β : Type u} (r : α → β → Prop) : Script m α → Script n β → Prop
+  | pure {a b} : r a b → Script.Rel R r (.pure a) (.pure b)
+  | step {γ : Type u} {x : m γ} {y : n γ} {k : γ → Script m α} {k' : γ → Script n β} :
+      R x y → (∀ c, Script.Rel R r (k c) (k' c)) → Script.Rel R r (.step x k) (.step y k')
+
+attribute [relator] Script.Rel
+
+class RunScript (m : Type u → Type v) where
+  run {α : Type u} : Script m α → m α
+
+derive_effect_rel RunScript
+
+example {m : Type u → Type v} {n : Type u → Type w} (R : ComputationRelation m n)
+    [left : RunScript m] [right : RunScript n] (h : RunScript.Rel R) {α : Type u}
+    (p : Script m α) (q : Script n α) (hpq : Script.Rel R Eq p q) :
+    R (left.run p) (right.run q) :=
+  h.run p q hpq
+
+/- Any other type family is related at each shared index too, such as a monad stack over the
+monad being related, whether written out or behind a definition. -/
+@[expose] def Stack (σ ε : Type u) (m : Type u → Type v) := StateT σ (ExceptT ε m)
+
+class RunStack (σ ε : Type u) (m : Type u → Type v) where
+  run {α : Type u} : Script (StateT σ (ExceptT ε m)) α → m α
+  runDef {α : Type u} : Script (Stack σ ε m) α → m α
+
+derive_effect_rel RunStack
+
+example {σ ε : Type u} {m : Type u → Type v} {n : Type u → Type w} (R : ComputationRelation m n)
+    [left : RunStack σ ε m] [right : RunStack σ ε n] (h : RunStack.Rel (σ := σ) (ε := ε) R)
+    {α : Type u} (p : Script (StateT σ (ExceptT ε m)) α) (q : Script (StateT σ (ExceptT ε n)) α)
+    (hpq : Script.Rel (fun ⦃β⦄ (x : StateT σ (ExceptT ε m) β) (x' : StateT σ (ExceptT ε n) β) =>
+      ∀ s, R (x s) (x' s)) Eq p q)
+    (p' : Script (Stack σ ε m) α) (q' : Script (Stack σ ε n) α)
+    (hpq' : Script.Rel (fun ⦃β⦄ (x : Stack σ ε m β) (x' : Stack σ ε n β) => ∀ s, R (x s) (x' s))
+      Eq p' q') :
+    R (left.run p) (right.run q) ∧ R (left.runDef p') (right.runDef q') :=
+  ⟨h.run p q hpq, h.runDef p' q' hpq'⟩
+
+/- A type family that does not mention the monad is related by equality at each index. -/
+class RunPure (m : Type u → Type u) where
+  run {α : Type u} : Script Id (m α) → m α
+
+derive_effect_rel RunPure
+
+-- `R (α := α)`: a base relation handed on at a single index has to name it.
+example {m n : Type u → Type u} (R : ComputationRelation m n) [left : RunPure m]
+    [right : RunPure n] (h : RunPure.Rel R) {α : Type u} (p : Script Id (m α))
+    (q : Script Id (n α)) (hpq : Script.Rel (fun ⦃β⦄ (x x' : Id β) => x = x') (R (α := α)) p q) :
+    R (left.run p) (right.run q) :=
+  h.run p q hpq
+
+/- The relation for a type family may also be written out rather than through an alias. -/
+def Scripted (m : Type u → Type v) (α : Type u) := Script m α
+
+def Scripted.Rel {m : Type u → Type v} {n : Type u → Type w}
+    (R : ⦃γ : Type u⦄ → m γ → n γ → Prop) {α β : Type u} (r : α → β → Prop)
+    (x : Scripted m α) (y : Scripted n β) : Prop :=
+  Script.Rel R r x y
+
+attribute [relator] Scripted.Rel
+
+/- A lifted argument need not be a variable. -/
+structure Box (α : Type u) where
+  val : α
+
+def Box.ListRel {α β : Type u} (r : List α → List β → Prop) (x : Box (List α))
+    (y : Box (List β)) : Prop :=
+  r x.val y.val
+
+attribute [relator] Box.ListRel
+
 def notARelator (x : Nat) : Prop := x = 0
 
 /-- error: logical relation: relator TapasTest.Applications.Monad.EffectRelation.notARelator must have type `… → F α … → F β … → Prop` -/
@@ -316,6 +396,20 @@ error: logical relation: relator TapasTest.Applications.Monad.EffectRelation.sam
 -/
 #guard_msgs in
 attribute [relator] sameSize
+
+/- A type family is related at a shared index. A relation for the monad that instead takes a
+relation between two value types is rejected, and the error names the type expected. -/
+def optionTRel {m : Type u → Type v} {n : Type u → Type w}
+    (R : ∀ {γ δ : Type u}, (γ → δ → Prop) → m γ → n δ → Prop) {α β : Type u}
+    (r : α → β → Prop) (x : OptionT m α) (y : OptionT n β) : Prop :=
+  R (Option.Rel r) x.run y.run
+
+/--
+error: logical relation: relator TapasTest.Applications.Monad.EffectRelation.optionTRel must take exactly one relation of type
+  ⦃a : Type u⦄ → m a → n a → Prop
+-/
+#guard_msgs in
+attribute [relator] optionTRel
 
 def optionAll {α : Type u} {β : Type v} (r : α → β → Prop) : Option α → Option β → Prop :=
   Option.Rel r
@@ -358,6 +452,35 @@ example {m : Type u → Type v} {n : Type u → Type w} (R : ComputationRelation
       [Monad k] [Monad k'], Monad.Rel S → S (p (k := k)) (q (k := k'))) :
     R (left.run p) (right.run q) :=
   h.run p q hpq
+
+/- A relator applied to the type's own monad receives that monad's base relation. -/
+abbrev Interpreter (α : Type u) := {m : Type u → Type v} → [Monad m] → Script m α → m α
+
+derive_type_rel Interpreter (repr := m)
+
+example {α : Type u} (f : Interpreter.{u, v} α) (g : Interpreter.{u, w} α) :
+    Interpreter.Rel (@f) (@g) ↔
+      ∀ {m : Type u → Type v} {n : Type u → Type w} (R : ComputationRelation m n)
+        [lm : Monad m] [rn : Monad n], Monad.Rel R →
+        ∀ (p : Script m α) (q : Script n α), Script.Rel R Eq p q → R (@f m lm p) (@g n rn q) :=
+  Iff.rfl
+
+/- Applied to a monad stack over it, the relator gets a relation at each shared index instead,
+and the two computation universes may still differ. -/
+abbrev StackInterpreter (σ ε α : Type u) :=
+  {m : Type u → Type v} → [Monad m] → Script (StateT σ (ExceptT ε m)) α → m α
+
+derive_type_rel StackInterpreter (repr := m)
+
+example {σ ε α : Type u} (f : StackInterpreter.{u, v} σ ε α)
+    (g : StackInterpreter.{u, w} σ ε α) :
+    StackInterpreter.Rel (@f) (@g) ↔
+      ∀ {m : Type u → Type v} {n : Type u → Type w} (R : ComputationRelation m n)
+        [lm : Monad m] [rn : Monad n], Monad.Rel R →
+        ∀ (p : Script (StateT σ (ExceptT ε m)) α) (q : Script (StateT σ (ExceptT ε n)) α),
+          Script.Rel (fun ⦃β⦄ (x : StateT σ (ExceptT ε m) β) (x' : StateT σ (ExceptT ε n) β) =>
+            ∀ s, R (x s) (x' s)) Eq p q → R (@f m lm p) (@g n rn q) :=
+  Iff.rfl
 
 /-- error: logical relation: declaration already exists: TapasTest.Applications.Monad.EffectRelation.Program.Rel -/
 #guard_msgs in

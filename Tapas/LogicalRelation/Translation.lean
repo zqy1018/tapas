@@ -59,7 +59,10 @@ Writing `⟦T⟧ a b` for the relation at a type `T`. Each case below is a shape
   mentions a representation: the result is that relator applied to `left` and
   `right`, given `⟦aᵢ⟧` for each argument it lifts. An argument it does not lift
   is shared, so it must agree on both sides. Nesting follows from the recursion,
-  so `Option (List (repr i))` gives `Option.Rel (ListRel (R i))`.
+  so `Option (List (repr i))` gives `Option.Rel (ListRel (R i))`. A lifted type
+  family, such as the monad of a monad transformer, is related at each shared
+  index, as a base relation is: `⟦aᵢ⟧` is `fun ⦃α⦄ => ⟦aᵢ α⟧`, so the monad `m`
+  itself gives `R`, and `StateT σ m` gives `fun ⦃α⦄ x x' => ∀ s, R (x s) (x' s)`.
 * `T` mentions no representation and is not a sort: the result is `left = right`.
 
 ### Rejected
@@ -333,10 +336,14 @@ private partial def relatedEndpoints (t : RelatedTelescope) : MetaM Expr := do
     if let some info := getRelator? (← getEnv) typeConstructor then
       unless independent representations leftType && independent representations rightType do
         return ← applyRelator representations info leftType rightType left right fun a b =>
-          withLocalDeclD `x a fun x =>
-            withLocalDeclD `x' b fun x' => do
-              -- Eta-reduce so that e.g. `fun x x' => R x x'` becomes `R`.
-              return (← mkLambdaFVars #[x, x'] (← relationAt representations x x' selection)).eta
+          -- A type family, such as the monad of a monad transformer, is related at each
+          -- shared index, the way a base relation relates a representation.
+          withSharedIndices a b fun indices type type' =>
+            withLocalDeclD `x type fun x =>
+              withLocalDeclD `x' type' fun x' => do
+                let relation ← mkLambdaFVars (indices ++ #[x, x']) (← relationAt representations x x' selection)
+                -- Eta-reduce fully or not at all: `fun ⦃α⦄ x x' => R x x'` becomes `R`.
+                return relation.etaExpanded?.getD relation
   unless independent representations leftType && independent representations rightType do
     -- CHECK These are just error messages, but do they need to be so complicated?
     /- NOTE: Both extension points are looked up here and neither is invented, so all this

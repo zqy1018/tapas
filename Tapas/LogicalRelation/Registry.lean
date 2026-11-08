@@ -30,7 +30,9 @@ relation on `F`, e.g. `Option.Rel : (α → β → Prop) → Option α → Optio
 `registerRelator` for the accepted shapes. Registering a second relator for
 a type constructor that already has a visible one is an error.
 Arguments the relator does not lift are shared, as in a relator for
-`Except ε α` that only lifts `α`. `LogicalRelation.Relators` registers relators
+`Except ε α` that only lifts `α`. An argument that is a type family, such as the
+monad `m` of a monad transformer `T m α`, is lifted by a relation at each shared
+index, `∀ ⦃α⦄, m α → m' α → Prop`. `LogicalRelation.Relators` registers relators
 for common data types.
 -/
 
@@ -96,7 +98,9 @@ def getRelator? (env : Environment) (typeConstructor : Name) : Option RelatorInf
 Each argument position `i` of `F` is either shared, when `asᵢ` and `bsᵢ` are the same
 parameter, or lifted: then exactly one parameter must have type `asᵢ → bsᵢ → Prop`,
 and it receives the relation for that argument. For example `Option.Rel` lifts the
-only argument of `Option`. At most one relator can be registered per type constructor.
+only argument of `Option`. When the two sides are type families, such as the monad of
+a monad transformer, that type is `∀ ⦃is⦄, asᵢ is → bsᵢ is → Prop` instead, relating
+them at each shared index. At most one relator can be registered per type constructor.
 
 The universes of the two representations may differ, so a lifted argument should
 be allowed to live in different universes on the two sides, as in `Option.Rel`
@@ -132,16 +136,25 @@ def registerRelator (relator : Name) : MetaM Unit := do
           let mut candidates := #[]
           for h' : i in [:xs.size - 2] do
             have h'' : i < xs.size := by simp [Membership.mem] at h' ; omega
-            -- A non-dependent `a' → b' → Prop`, where `.sort .zero` is `Prop`.
+            -- `∀ ⦃is⦄, a is → b is → Prop`: a relation between the two sides at every shared
+            -- index; with no indices this is the plain non-dependent `a → b → Prop`.
+            -- Reducing the telescope sees through aliases such as `ComputationRelation m m'`.
             -- FIXME: Might need a better check here, e.g., using `isDefEq` instead of `==`
-            if let .forallE _ a' (.forallE _ b' (.sort .zero) _) _ ← inferType xs[i] then
-              if a' == a && b' == b then candidates := candidates.push i
+            let ok ← forallTelescopeReducing (← inferType xs[i]) fun ys body => do
+              unless body.isProp && ys.size ≥ 2 do return false
+              let is := ys.take (ys.size - 2)
+              return (← inferType ys[ys.size - 2]!) == mkAppN a is && (← inferType ys[ys.size - 1]!) == mkAppN b is
+            if ok then candidates := candidates.push i
           -- Exactly one is required in both directions: with none the relator fails
           -- to lift a position whose two sides differ, and with several the index
           -- recorded here, and hence the parameter `applyRelator` fills, would be an
           -- arbitrary choice.
-          let #[i] := candidates
-            | throwError "logical relation: relator {relator} must take exactly one relation of type{indentExpr (← mkArrow a (← mkArrow b (mkSort .zero)))}"
+          let #[i] := candidates | do
+            -- Name the type expected here, its indices strict implicit as in a base relation.
+            let expected ← forallTelescopeReducing (← inferType a) fun is _ =>
+              withNewBinderInfos (is.map (·.fvarId!, .strictImplicit)) do
+                mkForallFVars is (← mkArrowN #[mkAppN a is, mkAppN b is] (mkSort .zero))
+            throwError "logical relation: relator {relator} must take exactly one relation of type{indentExpr expected}"
           relationParamIdxs := relationParamIdxs.push (some i)
       return { typeConstructor, relator, relationParamIdxs, numParams := xs.size : RelatorInfo }
   if let some existing := getRelator? (← getEnv) entry.typeConstructor then

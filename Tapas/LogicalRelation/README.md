@@ -122,6 +122,9 @@ Each rule has an applicability condition **P**. Note that all rules below requir
 
   **P:** `F` has a registered relator; each shared argument is **independent and definitionally equal** on both
   sides. Each lifted argument admits a **recursively** constructed relation (so `F (F repr)` is allowed).
+  A lifted type family, such as the monad `m` of a monad transformer `F m α`, is related **at each shared
+  index**, of the shape of `R` in [the table above](#shape-of-the-base-relation), so its index domains must
+  be definitionally equal: `m` itself gives `R`, and `StateT σ m` gives `fun ⦃α⦄ x x' => ∀ s, R (x s) (x' s)`.
 
   The result applies the relator with those relations and the two endpoints.
 * **Ordinary values:** 
