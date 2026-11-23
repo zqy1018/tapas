@@ -21,9 +21,13 @@ open Tapas.LogicalRelation
 
 derive_effect_rel Monad
 derive_effect_rel MonadStateOf
+derive_effect_rel MonadState
 derive_effect_rel MonadReaderOf
+derive_effect_rel MonadReader
 derive_effect_rel MonadWithReaderOf
+derive_effect_rel MonadWithReader
 derive_effect_rel MonadExceptOf
+derive_effect_rel MonadExcept
 derive_effect_rel MonadLiftT (monad := n)
 
 namespace Monad.Rel
